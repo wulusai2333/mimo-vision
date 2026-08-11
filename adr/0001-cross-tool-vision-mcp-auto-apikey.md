@@ -1,6 +1,6 @@
 # ADR-0001: 泛用视觉 MCP —— API Key 自动发现 + 免费线路优先
 
-- 状态: **提议 (Proposed)** — 待评审后实施
+- 状态: **已接受 (Accepted)** — 2026-08-11 评审通过
 - 日期: 2026-08-11
 - 决策人: 本人（个人项目）
 - 关联: 自研 mimo-vision MCP（`vision_server.py`）
@@ -38,9 +38,9 @@
    - 取值：`OPENAI_API_KEY`（当前即 Windows Codex 的 opencode-go key，已验证）。
    - 兼容扩展：未来多 provider 时按 provider 名/含 `API_KEY` 或 `TOKEN` 的字段顺序取。
 3. **Claude Code**：`<home>/.claude/settings.json`
-   - 取值：`env.OPENAI_API_KEY` 或 `env.ANTHROPIC_AUTH_TOKEN`（连带读取对应 `BASE_URL` 作为线路参考）。
+   - 取值：`env.OPENAI_API_KEY`；`env.ANTHROPIC_AUTH_TOKEN` 仅当 `env.ANTHROPIC_BASE_URL` 指向 opencode 类端点时采用（连带读取对应 `BASE_URL` 作为线路参考）。
 4. **opencode**：`<home>/.local/share/opencode/auth.json`
-   - 取值：`opencode-go` → `opencode_go` → 任意含 `key` 的条目。
+   - 取值：仅预期 provider 名 `opencode-go` → `opencode_go`（不取无关 provider 的 key）。
 5. **全未命中**：返回明确错误提示（告知如何设置），不崩溃。
 
 `<home>` 一律用平台无关解析（`os.path.expanduser`），Windows 即 `%USERPROFILE%`，Unix 即 `~`，**不硬编码 WSL/Windows 路径**。
@@ -51,7 +51,8 @@
 | 1（默认） | Zen 免费 | `https://opencode.ai/zen/v1` | `mimo-v2.5-free` | 200K | 免费（已验证可用） |
 | 2（回退） | Go 套餐 | `https://opencode.ai/zen/go/v1` | `mimo-v2.5` | 1M | 计费 $0.14/$0.28（已验证可用） |
 
-- 回退触发：免费线路请求失败/超时/HTTP 4xx/5xx。
+- 回退触发：免费线路请求失败/超时/任意 HTTP 4xx/5xx（含 400 参数错、429 限流），每请求最多重试 1 次。
+- 成本开关：`MIMO_VISION_ALLOW_PAID`（默认 true；设 false 时禁用付费线路、失败即报错）。
 - 显式覆盖：环境变量 `MIMO_VISION_BASE_URL` / `MIMO_VISION_MODEL`（跳过自动线路选择）。
 
 ### 4. 图片预处理（保留现状）
@@ -61,6 +62,16 @@
 ### 5. 可移植性约束
 - 运行时文件与配置分离；路径全部平台无关解析；
 - 不做任何平台专属调用（不依赖 wsl.exe、不依赖 Git bash）。
+
+## 评审细化 (Review Refinements, 2026-08-11)
+
+grill-with-docs 评审通过后，对上述决策的补充约定：
+
+1. **key 源匹配策略**：只匹配预期 provider 名（opencode 源限 `opencode-go` / `opencode_go`，不取无关 provider 的 key）；Claude Code 源仅在 `env.ANTHROPIC_BASE_URL` 指向 opencode 类端点时才采用 `env.ANTHROPIC_AUTH_TOKEN`，否则跳过；选定 key 在两条线路均返回 401 时直接返回可操作错误，不自动换源。
+2. **线路回退语义**：每请求级回退，同一请求最多重试 1 次；回退触发含 400/429；成本开关 `MIMO_VISION_ALLOW_PAID` 默认 true。
+3. **图片预处理探测**：优先 `magick`（IM v7）；`convert`（v6）仅在解析路径不是 `System32\convert.exe`（NTFS 工具误报）时采用；缺失时原图直发。本机已装 ImageMagick 7.1.2（`magick.exe`）。备选的 PowerShell+GDI+ 预处理因违背"不做平台专属调用"约束被否决。
+4. **失败行为契约**：`describe_image` 任何失败统一返回工具级错误 `{isError: true, content:[{type:"text", text:"可操作提示"}]}`，进程不退出、stdio 连接不断。
+5. **配置形态（混合）**：显式 env（`MIMO_VISION_API_KEY` 等 + `MIMO_VISION_BASE_URL`/`MIMO_VISION_MODEL`）为最高优先级，即约定俗成的客户端配置方式；自动发现仅作零配置兜底；README 同时给出两种模式。
 
 ---
 
