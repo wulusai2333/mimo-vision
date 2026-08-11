@@ -10,8 +10,10 @@ mimo-vision is a cross-tool vision MCP server. It runs over stdio with JSON-RPC 
 mimo-vision/
 ├── adr/                  # Architecture Decision Records, numbered
 │   └── 0001-cross-tool-vision-mcp-auto-apikey.md
-├── tests/                # Unit tests (planned)
-├── vision_server.py      # MCP server entry point (planned, repo root)
+├── tests/                # Unit tests (unittest, stdlib)
+├── vision_server.py      # MCP server entry point (repo root)
+├── CONTEXT.md            # Domain glossary
+├── README.md             # Usage & configuration
 └── AGENTS.md
 ```
 
