@@ -1,11 +1,9 @@
 ﻿import base64
 import os
-import sys
 import tempfile
 import unittest
 from unittest import mock
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import vision_server as vs
 
 
@@ -55,6 +53,22 @@ class DescribeImageTest(unittest.TestCase):
              mock.patch("vision_server.call_vision", side_effect=vs.VisionError("HTTP 500")):
             with self.assertRaises(vs.VisionError):
                 vs.describe_image(p)
+
+    def test_claude_hint_routes_single_explicit(self):
+        # Claude source with opencode-like base URL must route to that base
+        p = write_tmp()
+        seen = {}
+        def fake_call(key, image_b64, mime, question=None, routes=None):
+            seen["routes"] = routes
+            return "ok"
+        with mock.patch("vision_server.discover_api_key",
+                        return_value=("k", "claude", "https://relay.example/v1")), \
+             mock.patch("vision_server.preprocess_image", return_value=(b"x", "image/png")), \
+             mock.patch("vision_server.call_vision", side_effect=fake_call):
+            vs.describe_image(p)
+        self.assertEqual(len(seen["routes"]), 1)
+        self.assertEqual(seen["routes"][0].base_url, "https://relay.example/v1")
+        self.assertEqual(seen["routes"][0].label, "claude")
 
 
 if __name__ == "__main__":

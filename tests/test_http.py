@@ -1,9 +1,7 @@
 ﻿import os
-import sys
 import unittest
 from unittest import mock
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import vision_server as vs
 
 
@@ -88,6 +86,18 @@ class CallVisionTest(unittest.TestCase):
             text = vs.call_vision(key="k", image_b64="AAAA", mime="image/jpeg",
                                   routes=[vs.FREE_ROUTE])
         self.assertEqual(text, "part1part2")
+
+    def test_any_401_triggers_key_hint(self):
+        # free -> 401, paid -> 500: hint must still be actionable
+        def fake(url, headers, payload, timeout):
+            if url.startswith(vs.FREE_ROUTE.base_url):
+                raise vs.VisionError("HTTP 401 unauthorized")
+            raise vs.VisionError("HTTP 500 boom")
+        with mock.patch("vision_server._http_post_json", side_effect=fake):
+            with self.assertRaises(vs.VisionError) as cm:
+                vs.call_vision(key="k", image_b64="AAAA", mime="image/jpeg",
+                               routes=[vs.FREE_ROUTE, vs.PAID_ROUTE])
+        self.assertIn("MIMO_VISION_API_KEY", str(cm.exception))
 
 
 if __name__ == "__main__":

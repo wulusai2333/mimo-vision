@@ -1,12 +1,10 @@
 ﻿import io
 import json
 import os
-import sys
 import tempfile
 import unittest
 from unittest import mock
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import vision_server as vs
 
 
@@ -107,6 +105,22 @@ class DiscoverApiKeyTest(unittest.TestCase):
         home = make_home({".codex/auth.json": {"PROVIDER_API_KEY": "k-p"}})
         key, source, _ = vs.discover_api_key(home=home)
         self.assertEqual(key, "k-p")
+
+    def test_opencode_real_entry_shape(self):
+        # Real opencode auth.json entries: {"opencode-go": {"type": "api", "key": "sk-..."}}
+        self._clear_env()
+        home = make_home({".local/share/opencode/auth.json": {
+            "opencode-go": {"type": "api", "key": "sk-real"}}})
+        key, source, _ = vs.discover_api_key(home=home)
+        self.assertEqual(key, "sk-real")
+        self.assertEqual(source, "opencode")
+
+    def test_unreadable_path_skipped(self):
+        # A directory is not a readable file -> OSError path must be skipped
+        self._clear_env()
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, ".codex"), exist_ok=True)
+        self.assertIsNone(vs.discover_api_key(home=d))
 
 
 if __name__ == "__main__":

@@ -69,7 +69,7 @@ MIMO_VISION_MODEL = 'mimo-v2.5-free'
 | `VISION_API_KEY` / `OPENCODE_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | 显式 key（依次降级） | 无 |
 | `MIMO_VISION_BASE_URL` | 显式线路 base URL（跳过自动选路，单线路不兜底） | 无 |
 | `MIMO_VISION_MODEL` | 显式模型（同上） | 无 |
-| `MIMO_VISION_ALLOW_PAID` | 是否允许付费线路兜底（`false`/`0`/`no` 禁用） | `true` |
+| `MIMO_VISION_ALLOW_PAID` | 是否允许付费线路兜底（`false`/`0`/`no`/`off` 禁用） | `true` |
 
 ## 开发
 
