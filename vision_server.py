@@ -436,6 +436,9 @@ def handle_line(raw):
 
 
 def main():
+    # MCP stdio transport is UTF-8; force it regardless of locale.
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
     for line in sys.stdin:
         resp = handle_line(line)
         if resp:
