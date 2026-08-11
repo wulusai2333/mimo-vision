@@ -78,6 +78,31 @@ python -m unittest discover -s tests   # 运行全部测试
 python vision_server.py                # 以 stdio 方式启动
 ```
 
+## 安装 / 发布
+
+项目已按可发布包结构组织（`pyproject.toml`，运行时零第三方依赖）：
+
+```bash
+pip install .            # 本地安装，得到 `mimo-vision` 命令
+mimo-vision              # 直接以 stdio 方式启动（等价于 python vision_server.py）
+```
+
+其他机器（无需手动装依赖）：
+
+```bash
+uvx --from /path/to/mimo-vision mimo-vision   # 从本地目录运行
+uvx mimo-vision                                # 发布到 PyPI 后一行运行
+```
+
+安装后注册可简化为（Codex）：
+
+```toml
+[mcp_servers.mimo-vision]
+command = 'mimo-vision'
+startup_timeout_sec = 120
+```
+
+
 ## 失败语义
 
 任何失败（无 key、双线路失败、文件不存在、非图片、预处理异常）都以**工具级错误**返回：`{isError: true, content: [{type: "text", text: "可操作提示"}]}`，进程不退出、连接不断开。

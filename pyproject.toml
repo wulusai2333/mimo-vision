@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mimo-vision"
+version = "0.1.0"
+description = "Cross-tool vision MCP server (Python stdlib only): describe images via mimo-v2.5 vision models"
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["mcp", "vision", "image", "multimodal", "opencode"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.scripts]
+mimo-vision = "vision_server:main"
+
+[tool.setuptools]
+py-modules = ["vision_server"]
