@@ -7,6 +7,7 @@ name = "mimo-vision"
 version = "0.1.0"
 description = "Cross-tool vision MCP server (Python stdlib only): describe images via mimo-v2.5 vision models"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.9"
 keywords = ["mcp", "vision", "image", "multimodal", "opencode"]
 classifiers = [
