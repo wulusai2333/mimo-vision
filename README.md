@@ -1,4 +1,4 @@
-﻿# mimo-vision
+# mimo-vision
 
 跨工具视觉 MCP server：把图片发给多模态模型（mimo-v2.5 系），把返回的文字描述交给主模型。stdio + JSON-RPC 2.0，Python 3 标准库、**零第三方依赖**，Windows / WSL / macOS / Linux 通用。
 
@@ -29,7 +29,7 @@ args = ['C:\path\to\mimo-vision\vision_server.py']
 startup_timeout_sec = 120
 
 [mcp_servers.mimo-vision.env]
-MIMO_VISION_API_KEY = 'sk-...'
+OPENCODE_API_KEY = 'sk-...'
 MIMO_VISION_BASE_URL = 'https://opencode.ai/zen/v1'
 MIMO_VISION_MODEL = 'mimo-v2.5-free'
 ```
@@ -43,7 +43,7 @@ MIMO_VISION_MODEL = 'mimo-v2.5-free'
       "command": "python",
       "args": ["C:\\path\\to\\mimo-vision\\vision_server.py"],
       "env": {
-        "MIMO_VISION_API_KEY": "sk-...",
+        "OPENCODE_API_KEY": "sk-...",
         "MIMO_VISION_BASE_URL": "https://opencode.ai/zen/v1",
         "MIMO_VISION_MODEL": "mimo-v2.5-free"
       }
@@ -54,19 +54,17 @@ MIMO_VISION_MODEL = 'mimo-v2.5-free'
 
 ### 方式二：零配置（自动发现，推荐本机日常）
 
-`env` 不填任何值，server 按优先级自动复用当前工具已登录的 key：
+`env` 不填任何值，server 按优先级自动复用已登录的 key：
 
-1. 环境变量：`MIMO_VISION_API_KEY` > `VISION_API_KEY` > `OPENCODE_API_KEY` > `OPENAI_API_KEY` > `ANTHROPIC_API_KEY`
-2. `~/.codex/auth.json`（Codex）
-3. `~/.claude/settings.json`（Claude Code；`ANTHROPIC_AUTH_TOKEN` 仅当 `ANTHROPIC_BASE_URL` 指向 opencode 类端点时采用）
-4. `~/.local/share/opencode/auth.json`（仅 `opencode-go` / `opencode_go`，不取无关 provider）
+1. 环境变量：`OPENCODE_API_KEY` > `OPENCODE_GO_API_KEY`
+2. `~/.dsh/.credentials.yaml`（DSH 凭据；优先取 `OPENCODE_GO_API_KEY`，其次 `OPENCODE_API_KEY`）
+3. `~/.local/share/opencode/auth.json`（仅 `opencode-go` / `opencode_go`，不取无关 provider）
 
 ## 环境变量
 
 | 变量 | 说明 | 默认 |
 |---|---|---|
-| `MIMO_VISION_API_KEY` | 显式 key（最高优先级） | 无 |
-| `VISION_API_KEY` / `OPENCODE_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | 显式 key（依次降级） | 无 |
+| `OPENCODE_API_KEY` / `OPENCODE_GO_API_KEY` | 显式 key（`OPENCODE_API_KEY` 优先） | 无 |
 | `MIMO_VISION_BASE_URL` | 显式线路 base URL（跳过自动选路，单线路不兜底） | 无 |
 | `MIMO_VISION_MODEL` | 显式模型（同上） | 无 |
 | `MIMO_VISION_ALLOW_PAID` | 是否允许付费线路兜底（`false`/`0`/`no`/`off` 禁用） | `true` |
@@ -109,5 +107,5 @@ startup_timeout_sec = 120
 
 ## 安全
 
-- 只读 ADR 列出的指定 auth 文件，不扫描目录、不打印 / 写盘 / 上传 key；
+- 只读 ADR 列出的指定 auth 文件（含 `~/.dsh/.credentials.yaml`），不扫描目录、不打印 / 写盘 / 上传 key；
 - key 仅在请求头 `Authorization: Bearer ...` 中使用。

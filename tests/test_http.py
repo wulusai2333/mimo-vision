@@ -51,7 +51,7 @@ class CallVisionTest(unittest.TestCase):
             with self.assertRaises(vs.VisionError) as cm:
                 vs.call_vision(key="k", image_b64="AAAA", mime="image/jpeg",
                                routes=[vs.FREE_ROUTE, vs.PAID_ROUTE])
-        self.assertIn("MIMO_VISION_API_KEY", str(cm.exception))
+        self.assertIn("OPENCODE_API_KEY", str(cm.exception))
 
     def test_paid_disabled_single_route_single_call(self):
         calls = []
@@ -78,6 +78,18 @@ class CallVisionTest(unittest.TestCase):
         self.assertEqual(parts[1]["image_url"]["url"], "data:image/png;base64,QUJD")
         self.assertEqual(seen["model"], vs.FREE_ROUTE.model)
 
+    def test_payload_uses_default_prompt_when_question_missing_or_blank(self):
+        for question in (None, "", "   "):
+            seen = {}
+            def fake(url, headers, payload, timeout):
+                seen.update(payload)
+                return ok_response("x")
+            with mock.patch("vision_server._http_post_json", side_effect=fake):
+                vs.call_vision(key="k", image_b64="QUJD", mime="image/png",
+                               question=question, routes=[vs.FREE_ROUTE])
+            msg = seen["messages"][0]
+            self.assertEqual(msg["content"][0]["text"], vs.DEFAULT_PROMPT)
+
     def test_list_content_extracted(self):
         def fake(url, headers, payload, timeout):
             return {"choices": [{"message": {"content": [
@@ -97,7 +109,7 @@ class CallVisionTest(unittest.TestCase):
             with self.assertRaises(vs.VisionError) as cm:
                 vs.call_vision(key="k", image_b64="AAAA", mime="image/jpeg",
                                routes=[vs.FREE_ROUTE, vs.PAID_ROUTE])
-        self.assertIn("MIMO_VISION_API_KEY", str(cm.exception))
+        self.assertIn("OPENCODE_API_KEY", str(cm.exception))
 
 
 if __name__ == "__main__":

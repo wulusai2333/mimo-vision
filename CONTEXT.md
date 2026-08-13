@@ -15,14 +15,14 @@ _Avoid_: endpoint、通道、上游
 兜底线路：`https://opencode.ai/zen/go/v1` + `mimo-v2.5`（1M 上下文，按量计费）。
 
 **key 源 (key source)**:
-一个可提供 API key 的位置——环境变量或某个工具（Codex / Claude Code / opencode）的 auth 文件。
+一个可提供 API key 的位置——环境变量或某个工具（DSH / opencode）的 auth 文件。
 _Avoid_: 凭据库、key 文件
 
 **自动发现 (auto-discovery)**:
 零配置模式：按固定优先级从各 key 源读取第一个非空 key 的机制。
 
 **显式配置 (explicit config)**:
-约定俗成模式：由用户在客户端配置的 `env` 里直接给出 `MIMO_VISION_API_KEY` / `MIMO_VISION_BASE_URL` / `MIMO_VISION_MODEL`。
+约定俗成模式：由用户在客户端配置的 `env` 里直接给出 `OPENCODE_API_KEY` / `MIMO_VISION_BASE_URL` / `MIMO_VISION_MODEL`。
 
 **回退 (fallback)**:
 免费线路请求失败后改发付费线路的重试动作；每请求最多 1 次。

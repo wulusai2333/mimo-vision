@@ -1,8 +1,8 @@
-﻿# Repository Guidelines
+# Repository Guidelines
 
 ## Project Overview
 
-mimo-vision is a cross-tool vision MCP server. It runs over stdio with JSON-RPC 2.0, exposes the `describe_image(path, question?)` tool, auto-discovers API keys from the current agent toolchain (Codex / Claude Code / opencode), and prefers the free Zen route with the paid Go route as fallback. Runtime is Python 3 with **zero third-party dependencies**.
+mimo-vision is a cross-tool vision MCP server. It runs over stdio with JSON-RPC 2.0, exposes the `describe_image(path, question?)` tool, auto-discovers API keys from the current agent toolchain (DSH / opencode with the DSH source checked first), and prefers the free Zen route with the paid Go route as fallback. Runtime is Python 3 with **zero third-party dependencies**.
 
 ## Project Structure & Module Organization
 
@@ -31,7 +31,7 @@ There is no build step or dependency install.
 ## Coding Style & Naming Conventions
 
 - Python: PEP 8, 4-space indentation, `snake_case` for functions/variables.
-- Environment variables: `UPPER_SNAKE_CASE` (e.g., `MIMO_VISION_API_KEY`).
+- Environment variables: `UPPER_SNAKE_CASE` (e.g., `OPENCODE_API_KEY`).
 - ADR files: `NNNN-kebab-case-slug.md` in `adr/`; update the status line when a decision is superseded.
 - No linter/formatter is configured; prefer simple, dependency-free stdlib code.
 
@@ -47,8 +47,8 @@ The repository has no history yet; adopt Conventional Commits: `feat:`, `fix:`, 
 
 ## Security & Configuration Tips
 
-- Read only the exact auth files listed in ADR-0001; never print, write, upload, or scan for keys.
-- Key precedence: `MIMO_VISION_API_KEY` > `VISION_API_KEY` > `OPENCODE_API_KEY` > `OPENAI_API_KEY` > `ANTHROPIC_API_KEY`.
+- Read only the exact auth files listed in ADR-0001 (including `~/.dsh/.credentials.yaml`); never print, write, upload, or scan for keys.
+- Key precedence: `OPENCODE_API_KEY` > `OPENCODE_GO_API_KEY`, then auto-discovery in this order: `~/.dsh/.credentials.yaml` (OPENCODE_GO_API_KEY → OPENCODE_API_KEY) > `~/.local/share/opencode/auth.json`.
 - Resolve paths with `os.path.expanduser` only; do not hardcode WSL/Windows paths.
 
 ## Agent-Specific Instructions

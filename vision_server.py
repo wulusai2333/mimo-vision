@@ -1,14 +1,15 @@
-﻿"""mimo-vision: cross-tool vision MCP server (Python 3 stdlib only).
+"""mimo-vision: cross-tool vision MCP server (Python 3 stdlib only).
 
 Exposes a single MCP tool ``describe_image(path, question?)`` over stdio
 (JSON-RPC 2.0, newline-delimited). API key is resolved explicitly from env
-vars first (conventional config), then auto-discovered from the current
-toolchain's auth files (zero-config fallback). See ADR-0001.
+vars first (conventional config), then auto-discovered from DSH and opencode
+auth files (zero-config fallback). See ADR-0001.
 """
 
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,19 +20,20 @@ from collections import namedtuple
 
 # Explicit env vars, highest priority (conventional config mode).
 ENV_KEY_PRECEDENCE = (
-    "MIMO_VISION_API_KEY",
-    "VISION_API_KEY",
     "OPENCODE_API_KEY",
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
+    "OPENCODE_GO_API_KEY",
 )
 
-# Auto-discovery sources, in order (zero-config mode).
+# Auto-discovery sources, in order (zero-config mode). DSH's credentials file
+# is checked first so its own keys win over opencode's auth file. Only
+# opencode-compatible keys are accepted, never generic or other-provider keys.
 SOURCE_FILES = (
-    (".codex/auth.json", "codex"),
-    (".claude/settings.json", "claude"),
+    (".dsh/.credentials.yaml", "dsh"),
     (".local/share/opencode/auth.json", "opencode"),
 )
+
+# DSH credentials key order: DSH's opencode-go name first, official name next.
+DSH_KEY_NAMES = ("OPENCODE_GO_API_KEY", "OPENCODE_API_KEY")
 
 OPCODE_PROVIDER_NAMES = ("opencode-go", "opencode_go")
 
@@ -41,6 +43,10 @@ FREE_ROUTE = Route("free", "https://opencode.ai/zen/v1", "mimo-v2.5-free")
 PAID_ROUTE = Route("paid", "https://opencode.ai/zen/go/v1", "mimo-v2.5")
 
 _FALSEY = {"0", "false", "no", "off"}
+
+DEFAULT_PROMPT = ("Describe this image in detail: main subjects, people, "
+                  "objects, actions, composition, colors, mood, and all "
+                  "visible text. Point out notable details.")
 
 _IM_MAX_EDGE = "2048x2048>"
 _IM_QUALITY = "85"
@@ -72,6 +78,45 @@ def _read_json(path):
         return None
 
 
+_DSH_KEY_RE = re.compile(r"^([A-Za-z0-9_\-]+)\s*:\s*(.*)$")
+
+
+def _read_flat_keyvals(path):
+    """Read a flat ``KEY: value`` file (a YAML subset) into a dict.
+
+    Used for DSH's credentials file (``.credentials.yaml``): plain
+    ``OPENCODE_GO_API_KEY: sk-...`` lines with no nesting. Tolerates leading
+    whitespace, blank lines, full-line ``#`` comments, trailing `` #`` inline
+    comments, and simple single/double quotes. On missing file, unreadable
+    path, or empty file, returns None (skipped silently like other sources).
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return None
+    out = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped in ("---", "..."):
+            continue
+        m = _DSH_KEY_RE.match(stripped)
+        if not m:
+            continue
+        value = m.group(2).strip()
+        # Strip a trailing `` #inline-comment`` before handling quotes; do it
+        # for any value (quoted or not) so ``'sk-x' # note`` parses cleanly.
+        if " #" in value:
+            value = value.split(" #", 1)[0].strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if value:
+            out[m.group(1)] = value
+    return out or None
+
+
 def _first_nonempty_str(data, *names):
     """First non-empty string among ``names`` in ``data``, else None."""
     if not isinstance(data, dict):
@@ -83,37 +128,6 @@ def _first_nonempty_str(data, *names):
     return None
 
 
-def _codex_key(data):
-    """Codex auth.json: OPENAI_API_KEY, else any *_API_KEY/_TOKEN field."""
-    key = _first_nonempty_str(data, "OPENAI_API_KEY")
-    if key:
-        return key, None
-    if isinstance(data, dict):
-        for name, val in data.items():
-            if isinstance(val, str) and val.strip() and (
-                    name.endswith("_API_KEY") or name.endswith("_TOKEN")):
-                return val.strip(), None
-    return None
-
-
-def _claude_key(data):
-    """Claude settings.json env: OPENAI_API_KEY, or ANTHROPIC_AUTH_TOKEN
-    only when ANTHROPIC_BASE_URL points at an opencode-like endpoint."""
-    if not isinstance(data, dict):
-        return None
-    env = data.get("env")
-    if not isinstance(env, dict):
-        return None
-    key = _first_nonempty_str(env, "OPENAI_API_KEY")
-    if key:
-        return key, None
-    tok = _first_nonempty_str(env, "ANTHROPIC_AUTH_TOKEN")
-    base = _first_nonempty_str(env, "ANTHROPIC_BASE_URL")
-    if tok and base and "opencode" in base.lower():
-        return tok, base
-    return None
-
-
 def _opencode_key(data):
     """opencode auth.json: only expected provider names; take their key."""
     if not isinstance(data, dict):
@@ -121,41 +135,52 @@ def _opencode_key(data):
     for name in OPCODE_PROVIDER_NAMES:
         entry = data.get(name)
         if isinstance(entry, str) and entry.strip():
-            return entry.strip(), None
+            return entry.strip()
         if isinstance(entry, dict):
             val = _first_nonempty_str(
                 entry, "key", "apiKey", "token", "API_KEY", "TOKEN")
             if val:
-                return val, None
+                return val
+    return None
+
+
+def _dsh_key(data):
+    """DSH credentials: only opencode-compatible key names; ignore the rest."""
+    if not isinstance(data, dict):
+        return None
+    key = _first_nonempty_str(data, *DSH_KEY_NAMES)
+    if key:
+        return key
     return None
 
 
 _KEY_EXTRACTORS = {
-    "codex": _codex_key,
-    "claude": _claude_key,
+    "dsh": _dsh_key,
     "opencode": _opencode_key,
+}
+
+_SOURCE_READERS = {
+    "dsh": _read_flat_keyvals,
+    "opencode": _read_json,
 }
 
 
 def discover_api_key(home=None):
     """Resolve an API key.
 
-    Returns ``(key, source_label, base_url_hint)``; ``base_url_hint`` is set
-    only when the Claude source's ANTHROPIC_BASE_URL was used. Returns None
-    when no key source matches.
+    Returns ``(key, source_label)``, or None when no key source matches.
     """
     for var in ENV_KEY_PRECEDENCE:
         val = os.environ.get(var)
         if val and val.strip():
-            return val.strip(), "env:%s" % var, None
+            return val.strip(), "env:%s" % var
     if home is None:
         home = os.path.expanduser("~")
     for rel, label in SOURCE_FILES:
         path = os.path.join(home, rel.replace("/", os.sep))
-        found = _KEY_EXTRACTORS[label](_read_json(path))
+        found = _KEY_EXTRACTORS[label](_SOURCE_READERS[label](path))
         if found:
-            key, hint = found
-            return key, label, hint
+            return found, label
     return None
 
 
@@ -218,7 +243,7 @@ def _extract_content(data):
 
 
 def _build_payload(model, image_b64, mime, question):
-    prompt = (question or "").strip() or "Describe this image in detail."
+    prompt = (question or "").strip() or DEFAULT_PROMPT
     return {
         "model": model,
         "messages": [{
@@ -261,8 +286,8 @@ def call_vision(key, image_b64, mime, question=None, routes=None,
             errors.append(e)
     if any("401" in str(e) for e in errors):
         raise VisionError(
-            "API key 无效或未被接受（401）。请设置 MIMO_VISION_API_KEY，"
-            "或检查 ~/.codex/auth.json 等 key 源。")
+            "API key 无效或未被接受（401）。请设置 OPENCODE_API_KEY，"
+            "或检查 ~/.dsh/.credentials.yaml 等 key 源。")
     raise VisionError("所有线路请求失败: %s" % errors[-1])
 
 
@@ -320,18 +345,6 @@ def preprocess_image(path, max_edge=_IM_MAX_EDGE, quality=_IM_QUALITY):
             pass
 
 
-def _routes_for_key(hint):
-    """Route list honoring a discovered opencode-like base URL hint.
-
-    When the Claude source supplies an opencode-like ANTHROPIC_BASE_URL, route
-    there directly (single route; no paid fallback with a foreign key).
-    """
-    if hint:
-        return [Route("claude", hint, FREE_ROUTE.model)]
-    routes, _explicit = resolve_routes()
-    return routes
-
-
 def describe_image(path, question=None):
     """Tool body: discover key, preprocess image, call the vision model."""
     _require_file(path)
@@ -340,12 +353,12 @@ def describe_image(path, question=None):
     found = discover_api_key()
     if found is None:
         raise VisionError(
-            "未找到可用的 API key。请设置环境变量 MIMO_VISION_API_KEY，"
-            "或确保 Codex/Claude Code/opencode 已登录"
-            "（~/.codex/auth.json 等）。")
-    key, _source, hint = found
-    return call_vision(key, image_b64, mime, question,
-                       _routes_for_key(hint))
+            "未找到可用的 API key。请设置环境变量 OPENCODE_API_KEY "
+            "或 OPENCODE_GO_API_KEY，"
+            "或确保 DSH/opencode 已登录"
+            "（~/.dsh/.credentials.yaml 等）。")
+    key, _source = found
+    return call_vision(key, image_b64, mime, question)
 
 
 TOOL_SPEC = {
