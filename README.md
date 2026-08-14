@@ -14,14 +14,18 @@
 |---|---|---|
 | `describe_image` | `path`（必填）、`question`（可选） | 描述图片文件，返回文字 |
 
-支持图片格式：**PNG / JPEG / GIF / WebP / BMP**（均已实测可被视觉模型解码）；其它扩展名会直接报错，不会静默发送。
+支持图片格式：
+
+- **原生直发**：PNG / JPEG / GIF / WebP / BMP（均已实测可被视觉模型解码）
+- **自动转码**：SVG / TIFF / HEIC / PSD / ICO / EXR / JP2 / JXL / AVIF——本机装有 ImageMagick 时自动转成 PNG 再发，并缩到长边 ≤2048px（省 token）
+- 其它扩展名、或转码格式未装 ImageMagick 时，直接返回明确报错（不静默发送）
 
 用法示例（对模型说）：`用 describe_image 描述 D:\photos\cat.png，重点看它是什么品种的猫`。
 
 ## 工作原理
 
 1. **key 解析**：`ctx.credentials.resolve` 按 `OPENCODE_GO_API_KEY` → `OPENCODE_API_KEY` 取第一个非空（DSH 凭据分层：进程 env > `~/.dsh/.credentials.yaml` > `.env`）。
-2. **读图**：`ctx.fs.resolve`（相对路径按会话 workspace cwd 解析）→ `ctx.fs.readBytes`（20 MiB 上限）→ base64。
+2. **读图**：`ctx.fs.resolve`（相对路径按会话 workspace cwd 解析）→ `ctx.fs.readBytes`（20 MiB 上限）；非原生格式（SVG/TIFF/HEIC…）经 ImageMagick（走 `ctx.subprocess` 接缝）转成 PNG 并缩到长边 2048px → base64。
 3. **线路**：免费 Zen（`mimo-v2.5-free`）优先；失败（非 2xx / 超时）每请求回退付费 Go（`mimo-v2.5`）一次；`allowPaid: false` 禁用付费兜底。
 
 设计决策见 [adr/0002-dsh-native-plugin.md](adr/0002-dsh-native-plugin.md)（取代了此前的 MCP 方案 ADR-0001）。

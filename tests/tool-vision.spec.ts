@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { writeFileSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -42,9 +43,30 @@ function agent(cwd = dir): object {
   return { options: {}, session: { header: { cwd } } }
 }
 
+/** Subprocess fake that simulates ImageMagick by writing a PNG to the output path in `argv`. */
+function fakeSubprocessWithMagick() {
+  return {
+    resolveExecutable: async () => '/fake/magick',
+    spawn: (spec: { argv: readonly string[] }) => {
+      writeFileSync(spec.argv[spec.argv.length - 1]!, PNG_1X1)
+      return {
+        pid: 1,
+        stdin: undefined,
+        stdout: undefined,
+        stderr: undefined,
+        collected: { stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) } },
+        done: Promise.resolve({ exitCode: 0, signal: null }),
+        terminate: () => {},
+        waitForExit: async () => true,
+      }
+    },
+  }
+}
+
 interface SetupOptions {
   credentials?: Record<string, string>
   config?: tool.Config
+  subprocess?: object
 }
 
 async function setup(options: SetupOptions = {}): Promise<Context> {
@@ -53,6 +75,7 @@ async function setup(options: SetupOptions = {}): Promise<Context> {
   await ctx.plugin(ToolRuntime, { mode: 'native' })
   await ctx.plugin(LocalFileSystem, { cwd: dir })
   ctx.provide('credentials', fakeCredentials(options.credentials ?? { OPENCODE_GO_API_KEY: 'sk-go' }) as never)
+  if (options.subprocess !== undefined) ctx.provide('subprocess', options.subprocess as never)
   await ctx.plugin(tool, options.config ?? {})
   return ctx
 }
@@ -246,7 +269,27 @@ describe('describe_image execution', () => {
     const ctx = await setup()
     const result = await describeImage(ctx, { path: 'notes.txt' }, agent())
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('only BMP/GIF/JPEG/PNG/WebP')
+    expect(text(result)).toContain('only image files are supported')
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a transcodable format when the subprocess service is absent', async () => {
+    await writeFile(join(dir, 'a.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    stubVision('unreachable')
+    const ctx = await setup() // no subprocess provided
+    const result = await describeImage(ctx, { path: 'a.svg' }, agent())
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('ImageMagick')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('converts a transcodable format through the subprocess seam', async () => {
+    await writeFile(join(dir, 'a.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    stubVision('converted ok')
+    const ctx = await setup({ subprocess: fakeSubprocessWithMagick() })
+    const result = await describeImage(ctx, { path: 'a.svg' }, agent())
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected describe_image success')
+    expect(result.value).toBe('converted ok')
   })
 })

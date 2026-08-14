@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveVisionKey } from '../src/key.ts'
 import { resolveRoutes } from '../src/routes.ts'
+import { isTranscodable } from '../src/transcode.ts'
 import { buildPayload, callVision, DEFAULT_PROMPT, extractContent, guessMime } from '../src/vision.ts'
 import type { VisionRequest } from '../src/vision.ts'
 
@@ -73,6 +74,22 @@ describe('guessMime', () => {
   it('returns undefined for unknown or missing extensions', () => {
     expect(guessMime('notes.txt')).toBeUndefined()
     expect(guessMime('no-extension')).toBeUndefined()
+  })
+})
+
+describe('isTranscodable', () => {
+  it('recognizes ImageMagick-convertible formats', () => {
+    expect(isTranscodable('a.svg')).toBe(true)
+    expect(isTranscodable('b.TIFF')).toBe(true)
+    expect(isTranscodable('c.heic')).toBe(true)
+    expect(isTranscodable('d.psd')).toBe(true)
+  })
+
+  it('excludes native formats, other files, and missing extensions', () => {
+    expect(isTranscodable('a.png')).toBe(false)
+    expect(isTranscodable('a.jpg')).toBe(false)
+    expect(isTranscodable('notes.txt')).toBe(false)
+    expect(isTranscodable('no-extension')).toBe(false)
   })
 })
 

@@ -16,6 +16,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolExecution } from '@deepseek-ai/dsh-tools'
 import { resolveVisionKey } from './key.ts'
 import { resolveRoutes } from './routes.ts'
+import { isTranscodable, transcodeToPng } from './transcode.ts'
 import { callVision, guessMime } from './vision.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
@@ -99,10 +100,11 @@ export function apply(ctx: Context, config: Config): void {
     // Read-only remote call with no shared mutable state; concurrent calls cannot conflict.
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      const mime = guessMime(args.path)
-      if (mime === undefined) {
+      const nativeMime = guessMime(args.path)
+      if (nativeMime === undefined && !isTranscodable(args.path)) {
         throw new Error(
-          `cannot describe "${args.path}": only BMP/GIF/JPEG/PNG/WebP images are supported`,
+          `cannot describe "${args.path}": only image files are supported `
+          + '(PNG/JPEG/GIF/WebP/BMP natively, or SVG/TIFF/HEIC/PSD/ICO/... when ImageMagick is installed)',
         )
       }
       const key = await resolveVisionKey(resolveCredential)
@@ -115,7 +117,9 @@ export function apply(ctx: Context, config: Config): void {
       const { target, info } = await resolveRegularReadTarget(ctx, exec, args.path)
       const bytes = await ctx.fs.readBytes(target, exec.signal, MAX_IMAGE_BYTES)
       ctx.emit('fs/observed', target, { kind: 'present', version: info.version }, exec)
-      const imageBase64 = Buffer.from(bytes).toString('base64')
+      const imageBytes = nativeMime === undefined ? await transcodeToPng(ctx, bytes, exec.signal) : bytes
+      const mime = nativeMime ?? 'image/png'
+      const imageBase64 = Buffer.from(imageBytes).toString('base64')
       return callVision({
         key,
         imageBase64,
