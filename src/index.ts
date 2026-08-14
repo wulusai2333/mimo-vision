@@ -40,10 +40,10 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   allowPaid: z.boolean().default(true),
-  freeBaseUrl: z.string().optional(),
-  freeModel: z.string().optional(),
-  paidBaseUrl: z.string().optional(),
-  paidModel: z.string().optional(),
+  freeBaseUrl: z.string(),
+  freeModel: z.string(),
+  paidBaseUrl: z.string(),
+  paidModel: z.string(),
 })
 
 /**
