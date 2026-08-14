@@ -56,5 +56,5 @@ _Avoid_: 凭据文件、key 解析
 
 - **注册即可逆 effect**：`apply` 仅 `ctx.tools.register(defineTool(...))`；派发即反注册、schema 自动撤出 system-prompt，卸载干净是**结构保证**而非手写清理。
 - **`inject` 声明依赖**：`['tools','fs','credentials']` 纯 Cordis 余效果；`subprocess` 为可选能力、缺省降级、用在执行期。是「声明依赖」，不是「探测依赖」。
-- **能力走接缝**：文件 `ctx.fs` + `fs/observed`，凭据 `ctx.credentials.resolve`（不手写解析），转码 `ctx.subprocess`；不碰 dsh 之外的任何边界。
+- **能力走接缝**：文件 `ctx.fs` + `fs/observed`，凭据 `ctx.credentials.resolve`（不手写解析），转码 `ctx.subprocess`；唯一例外是转码中间文件经 `node:fs` 写系统临时目录（`ctx.subprocess` 需真实 OS 路径、`ctx.fs` 是抽象目标），转换后即删。
 - **可卸载 / 可组合**：disposer 一跑即干净回收，无落盘、无 timer、无长连接需手动收尾。

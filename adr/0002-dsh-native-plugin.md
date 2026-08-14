@@ -8,6 +8,8 @@
 
 ---
 
+> **修订 (2026-08)**:本 ADR 第 4 条「移除图片预处理」已部分回退——提交 `6d3c3b8` / `78cf1ce` 重新加入了非原生格式（SVG/TIFF/HEIC/…）经 ImageMagick（`ctx.subprocess` 接缝）转 PNG 的能力（见 `src/transcode.ts` 与 README「自动转码」）。当前为三层格式策略：原生直发 / 非原生转码 / 明确拒绝；第 4 条关于"移除缩放压缩"的结论不再完全适用。
+
 ## 背景 (Context)
 
 mimo-vision 原是一个跨工具视觉 MCP server（Python 标准库、stdio + JSON-RPC），把图片发给 mimo-v2.5 系多模态模型、把文字描述返回给主模型。目标工具链已从"多个 agent 工具"收敛到 **DeepSeek Harness（DSH）**，且 DSH 本身就是"一切皆插件、注册即效果"范式（Cordis）的生产级落地。
@@ -33,7 +35,7 @@ mimo-vision 原是一个跨工具视觉 MCP server（Python 标准库、stdio + 
 - 原 ImageMagick 缩放/压缩（`-resize`/`-quality`/`-strip`）整体移除；原图经 `ctx.fs.readBytes` 读取后 base64 直发。
 - 读图加 20 MiB 硬上限（超出即 `FS_TOO_LARGE`），防内存/请求过大。
 
-### 5. 极简 Config（Schemastery，从 cordis.yml 传入）
+### 5. 极简 Config（Schemastery，从 cordis.patch.yml 传入）
 - 仅 `allowPaid`（默认 true）+ `freeBaseUrl`/`freeModel`/`paidBaseUrl`/`paidModel`（均有默认值，可覆写）。
 - key 名固定、不暴露为配置；移除 `MIMO_VISION_BASE_URL`/`MIMO_VISION_MODEL`/`MIMO_VISION_ALLOW_PAID` 等环境变量。
 

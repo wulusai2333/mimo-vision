@@ -1,0 +1,18 @@
+# mimo-vision bundle patch, auto-applied when this package is installed as a
+# profile bundle (see the `dsh.bundle` declaration in package.json):
+#
+#   dsh plugin --profile web add github:wulusai2333/mimo-vision
+#
+# `dsh plugin` reconciles this package into the profile's bundle layers, so the
+# tool activates without any manual patch. The `id` here matches the plugin's
+# exported `name` (`tool-vision`). Every config field is optional and defaults
+# in code; the block below shows them explicitly.
+- insert:
+    - id: tool-vision
+      name: '@deepseek-ai/dsh-tool-vision'
+      config:
+        allowPaid: true
+        freeBaseUrl: 'https://opencode.ai/zen/v1'
+        freeModel: 'mimo-v2.5-free'
+        paidBaseUrl: 'https://opencode.ai/zen/go/v1'
+        paidModel: 'mimo-v2.5'

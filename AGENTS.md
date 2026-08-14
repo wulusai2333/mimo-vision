@@ -13,19 +13,22 @@ mimo-vision/
 │   ├── invariant.ts # 空 invariant 伴生（仓库测试门禁约定）
 │   ├── key.ts       # 纯逻辑：OPENCODE_GO_API_KEY → OPENCODE_API_KEY 解析
 │   ├── routes.ts    # 纯逻辑：免费→付费线路解析
+│   ├── transcode.ts # 非原生格式经 ctx.subprocess→ImageMagick 转 PNG
 │   ├── vision.ts    # HTTP 调用 + payload/提取（纯 helper 可单测）
 │   └── types.ts     # 类型 only
-├── lib/             # 提交的预构建产物（tsdown 输出），新手免构建直接安装用
+├── lib/             # 提交的预构建产物（tsdown 输出），GitHub 源安装直接加载
 ├── tests/           # vitest（纯逻辑 + 真 Context 集成）
 ├── adr/             # ADR-0002 记录本改造决策
-├── cordis.yml       # 示例 patch
+├── cordis.patch.yml # bundle patch（package.json 的 dsh.bundle 声明它，自动挂载）
 ├── package.json / tsconfig.json
 └── CONTEXT.md / README.md / AGENTS.md
 ```
 
 - 纯逻辑（`key.ts`/`routes.ts`/`vision.ts` 的 helper）**零 `@deepseek-ai/*` 运行时依赖**，可独立单测。
-- 只有 `index.ts` 直接触碰接缝（`ctx.tools`/`ctx.fs`/`ctx.credentials`）。
-- `lib/` 是**提交的预构建产物**（`lib/index.js` 即 loader 的 `main` 入口），供"快速安装"路径直接复制；改 `src/` 后需按下方命令重建并同步 `lib/`。
+- 只有 `index.ts` 直接触碰接缝（`ctx.tools`/`ctx.fs`/`ctx.credentials`）；`transcode.ts` 经 `ctx.subprocess` 调 ImageMagick，但转码中间文件用 `node:fs` 写系统临时目录（见 README「Known Limitations」）。
+- `lib/` 是**提交的预构建产物**（`lib/index.js` 即 loader 的 `main` 入口），供 GitHub 源安装直接加载；改 `src/` 后需按下方命令重建并同步 `lib/`。
+- `package.json` 的 `peerDependencies` 用 `"*"`（**不用 `workspace:^`**）：全部 `@deepseek-ai/*` 接缝（含 `@deepseek-ai/schemastery`）由 DSH 的依赖闭包（`~/.dsh/profiles/node_modules` symlink 到 dsh 安装树）在运行时统一提供并保证单例。放宽版本约束是为了支持 `dsh plugin add github:...` 这类外部安装路径；**绝不要把 `@deepseek-ai/*` 挪进 `dependencies`**（`workspace:^` 在 profile 的独立 workspace 里无法解析、会导致安装失败，且会 pnpm 独立复制破坏单例接缝）。monorepo 内的 `devDependencies` 仍用 `workspace:^` 无妨。
+- `cordis.patch.yml` 用 `- insert:` + `id: tool-vision`（对齐插件导出的 `name`），并由 `package.json` 的 `dsh.bundle` 字段声明。mimo-vision 是 **bundle**：`dsh plugin add github:...` 会自动 reconcile 成 profile 层并激活工具，无需手改 patch。
 
 ## Build, Test, and Development Commands
 
@@ -57,5 +60,5 @@ mimo-vision/
 ## Security & Configuration Tips
 
 - key 只经 `ctx.credentials.resolve(credentialRef('OPENCODE_GO_API_KEY' | 'OPENCODE_API_KEY'))` 读取，不打印/写盘/扫描目录。
-- 文件读取只走 `ctx.fs`，读后即 base64 直发，不落盘。
+- 文件读取只走 `ctx.fs`，读后即 base64 直发，不落盘（非原生格式转码时经系统临时目录中转，转换后即删；见 `transcode.ts`）。
 - 新增能力应先走接缝（Service Definition/Provider/Consumer），不要在 `apply` 里手写进程/文件/网络边界之外的东西。

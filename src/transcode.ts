@@ -4,6 +4,11 @@
  * file and the converted PNG rides out as a scratch file, so binary never crosses the seam's
  * text-oriented stdio. When ImageMagick (or the subprocess service) is absent, a clear error is
  * raised rather than a hard failure — native formats never touch this path.
+ *
+ * Known limitation: the scratch files are written with `node:fs` into `os.tmpdir()` (not `ctx.fs`),
+ * because `ctx.subprocess` needs a real OS path for the local `magick` binary while `ctx.fs` targets
+ * may be abstract/remote/sandboxed. This bypasses the fs-sandbox policy; the scratch directory is
+ * removed immediately after conversion.
  * @module @deepseek-ai/dsh-tool-vision/src/transcode
  */
 
