@@ -3,7 +3,7 @@
  * wires this to `ctx.credentials.resolve`, so the key is discovered through the harness's own
  * layering (process env > `~/.dsh/.credentials.yaml` > `.env`) instead of any hand-rolled file
  * parsing. Only the two opencode-compatible references are consulted, in DSH's preferred order.
- * @module @deepseek-ai/dsh-tool-vision/src/key
+ * @module mimo-vision/src/key
  */
 
 /** Candidate references, most specific first (DSH's opencode-go name, then the official name). */

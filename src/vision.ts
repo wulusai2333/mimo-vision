@@ -3,7 +3,7 @@
  * a base64 data URL, textual description back out. Uses the global `fetch` (Node 22+), forwards the
  * caller's abort signal, and applies its own per-request timeout. Pure helpers (`guessMime`,
  * `buildPayload`, `extractContent`) are exported for direct unit testing.
- * @module @deepseek-ai/dsh-tool-vision/src/vision
+ * @module mimo-vision/src/vision
  */
 
 import type { VisionRoute } from './types.ts'

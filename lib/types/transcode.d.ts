@@ -4,7 +4,7 @@
  * file and the converted PNG rides out as a scratch file, so binary never crosses the seam's
  * text-oriented stdio. When ImageMagick (or the subprocess service) is absent, a clear error is
  * raised rather than a hard failure — native formats never touch this path.
- * @module @deepseek-ai/dsh-tool-vision/src/transcode
+ * @module mimo-vision/src/transcode
  */
 import type { Context } from '@deepseek-ai/cordis';
 /** Extensions the vision endpoint does not decode natively but ImageMagick can convert to PNG. */

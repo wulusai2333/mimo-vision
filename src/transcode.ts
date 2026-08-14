@@ -9,7 +9,7 @@
  * because `ctx.subprocess` needs a real OS path for the local `magick` binary while `ctx.fs` targets
  * may be abstract/remote/sandboxed. This bypasses the fs-sandbox policy; the scratch directory is
  * removed immediately after conversion.
- * @module @deepseek-ai/dsh-tool-vision/src/transcode
+ * @module mimo-vision/src/transcode
  */
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'

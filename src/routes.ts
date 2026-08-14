@@ -1,7 +1,7 @@
 /**
  * Route resolution: the free tier first, the paid tier as a per-call fallback. Every endpoint and
  * model is overridable through plugin config; nothing here reads the process environment.
- * @module @deepseek-ai/dsh-tool-vision/src/routes
+ * @module mimo-vision/src/routes
  */
 
 import type { VisionRoute } from './types.ts'

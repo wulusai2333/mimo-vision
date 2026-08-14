@@ -1,6 +1,6 @@
 /**
- * Package-owned invariant companion for `@deepseek-ai/dsh-tool-vision`.
- * @module @deepseek-ai/dsh-tool-vision/invariant
+ * Package-owned invariant companion for `mimo-vision`.
+ * @module mimo-vision/invariant
  */
 import type { Context } from '@deepseek-ai/cordis';
 /** Cordis companion plugin name. */

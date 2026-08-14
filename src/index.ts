@@ -4,7 +4,7 @@
  * sends the image to a mimo-v2.5 vision model (free tier first, paid fallback), and returns the
  * textual description as its canonical output. Registration is a revertible effect — disposing the
  * plugin fiber unregisters the tool.
- * @module @deepseek-ai/dsh-tool-vision
+ * @module mimo-vision
  */
 
 import type { Context } from '@deepseek-ai/cordis'

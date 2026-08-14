@@ -4,7 +4,7 @@
 - 日期: 2026-08-11
 - 决策人: 本人（个人项目）
 - 取代: [0001-cross-tool-vision-mcp-auto-apikey.md](0001-cross-tool-vision-mcp-auto-apikey.md)（该决策整体不再适用）
-- 关联: `@deepseek-ai/dsh-tool-vision`（本仓库即该包的源码）
+- 关联: `mimo-vision`（本仓库即该包的源码）
 
 ---
 
@@ -19,7 +19,7 @@ mimo-vision 原是一个跨工具视觉 MCP server（Python 标准库、stdio + 
 ## 决策 (Decision)
 
 ### 1. 形态：原生 TypeScript 工具插件
-- 包名 `@deepseek-ai/dsh-tool-vision`，函数插件导出 `name`/`inject`/`Config`/`apply`（无 default export，保留 Loader 注入元数据）。
+- 包名 `mimo-vision`，函数插件导出 `name`/`inject`/`Config`/`apply`（无 default export，保留 Loader 注入元数据）。
 - `apply` 里用 `ctx.tools.register(defineTool({...}))` 注册唯一工具 `describe_image(path, question?)`；`register()` 返回的 disposer 使插件卸载自动反注册（HMR 安全）。
 - 工具契约：`parameters` 声明 schema（模型可见、自动校验）、`output.schema = { type: 'string' }` 声明规范值、`output.render` 投影模型文本、`execute` 只返回规范字符串、throw 即 `isError`。
 

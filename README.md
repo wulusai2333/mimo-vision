@@ -1,6 +1,6 @@
 # mimo-vision · DSH 原生视觉插件
 
-**mimo-vision** 是一个 **DeepSeek Harness（DSH）原生插件**，包名 `@deepseek-ai/dsh-tool-vision`。它注册一个 `describe_image` 工具：把图片发给 mimo-v2.5 系多模态模型，把返回的**文字描述**交给主模型——专为主模型（如 `deepseek-v4-flash`）没有视觉输入能力的场景做的"视觉桥"。
+**mimo-vision** 是一个 **DeepSeek Harness（DSH）原生插件**，包名 `mimo-vision`。它注册一个 `describe_image` 工具：把图片发给 mimo-v2.5 系多模态模型，把返回的**文字描述**交给主模型——专为主模型（如 `deepseek-v4-flash`）没有视觉输入能力的场景做的"视觉桥"。
 
 它不是独立进程，而是 DSH 里"一切皆插件"的一等公民：`apply` 只有一个动作——把能力注册成 dsh 的一等公民工具，依赖、文件、凭据、子进程全部走 dsh 已定义的能力接缝，卸载即干净回收。
 
@@ -60,7 +60,7 @@ dsh plugin --profile web add github:wulusai2333/mimo-vision
 
 ```powershell
 # Windows PowerShell
-$dst = "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh-tool-vision"
+$dst = "$env:USERPROFILE\.dsh\profiles\node_modules\mimo-vision"
 New-Item -ItemType Directory -Path $dst -Force | Out-Null
 Copy-Item package.json -Destination $dst -Force
 Copy-Item cordis.patch.yml -Destination $dst -Force
@@ -69,7 +69,7 @@ Copy-Item lib -Destination $dst -Recurse -Force
 
 ```bash
 # macOS / Linux
-dst="$HOME/.dsh/profiles/node_modules/@deepseek-ai/dsh-tool-vision"
+dst="$HOME/.dsh/profiles/node_modules/mimo-vision"
 mkdir -p "$dst"
 cp package.json "$dst/"
 cp cordis.patch.yml "$dst/"
@@ -81,7 +81,7 @@ cp -r lib "$dst/"
 ```yaml
 - insert:
     - id: tool-vision
-      name: '@deepseek-ai/dsh-tool-vision'
+      name: 'mimo-vision'
       config:
         allowPaid: true
 ```
@@ -102,17 +102,17 @@ OPENCODE_GO_API_KEY: sk-...
 
 **首次接入需重启一次 DSH**（让进程把新包 `import` 进来）。之后改这个插件的代码或 `allowPaid` 等配置，才是"免重启热更新"。
 
-重启后验证：在 DSH 设置里应能看到 `@deepseek-ai/dsh-tool-vision`，可用工具里出现 `describe_image`；也可以直接对模型说"用 describe_image 描述某张图"实测。
+重启后验证：在 DSH 设置里应能看到 `mimo-vision`，可用工具里出现 `describe_image`；也可以直接对模型说"用 describe_image 描述某张图"实测。
 
 ### 卸载
 
 `dsh plugin remove` 收的是**包名**（profile `dependencies` 里的键），不是安装源：
 
 ```bash
-dsh plugin --profile web remove @deepseek-ai/dsh-tool-vision
+dsh plugin --profile web remove mimo-vision
 ```
 
-> 传 `github:wulusai2333/mimo-vision` 会报 `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS`（"no such dependency found"）——因为依赖是按包名 `@deepseek-ai/dsh-tool-vision` 记录的，`remove` 要用这个键。该命令会同时移除依赖和 bundle 层。
+> 传 `github:wulusai2333/mimo-vision` 会报 `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS`（"no such dependency found"）——因为依赖是按包名 `mimo-vision` 记录的，`remove` 要用这个键。该命令会同时移除依赖和 bundle 层。
 
 ---
 
@@ -131,7 +131,7 @@ dsh plugin --profile web remove @deepseek-ai/dsh-tool-vision
 ```yaml
 - insert:
     - id: tool-vision
-      name: '@deepseek-ai/dsh-tool-vision'
+      name: 'mimo-vision'
       config:
         allowPaid: false
 ```

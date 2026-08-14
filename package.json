@@ -1,5 +1,5 @@
 {
-  "name": "@deepseek-ai/dsh-tool-vision",
+  "name": "mimo-vision",
   "description": "DeepSeek Harness (DSH) native plugin: the describe_image tool, a vision bridge (image -> mimo-v2.5 -> text description) over the ctx.fs / ctx.credentials seams",
   "version": "0.1.0-rc.5",
   "publishConfig": {

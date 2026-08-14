@@ -1,6 +1,6 @@
 /**
  * Shared shape vocabulary for the vision bridge. Types only — no runtime code.
- * @module @deepseek-ai/dsh-tool-vision/src/types
+ * @module mimo-vision/src/types
  */
 /** Discriminator naming which tier a route belongs to. */
 export type RouteLabel = 'free' | 'paid';

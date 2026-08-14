@@ -9,7 +9,7 @@
 # in code; the block below shows them explicitly.
 - insert:
     - id: tool-vision
-      name: '@deepseek-ai/dsh-tool-vision'
+      name: 'mimo-vision'
       config:
         allowPaid: true
         freeBaseUrl: 'https://opencode.ai/zen/v1'

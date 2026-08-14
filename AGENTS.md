@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-mimo-vision 是一个 DSH 原生工具插件（`@deepseek-ai/dsh-tool-vision`），注册唯一工具 `describe_image(path, question?)`：把图片经 `ctx.fs` 读入、key 经 `ctx.credentials` 发现、发往 mimo-v2.5 视觉模型（免费线路优先、付费兜底）、返回文字描述。它体现 DSH 的核心范式：**一切皆插件、注册即效果、`inject` 声明依赖、能力走接缝**。
+mimo-vision 是一个 DSH 原生工具插件（`mimo-vision`），注册唯一工具 `describe_image(path, question?)`：把图片经 `ctx.fs` 读入、key 经 `ctx.credentials` 发现、发往 mimo-v2.5 视觉模型（免费线路优先、付费兜底）、返回文字描述。它体现 DSH 的核心范式：**一切皆插件、注册即效果、`inject` 声明依赖、能力走接缝**。
 
 ## Project Structure & Module Organization
 

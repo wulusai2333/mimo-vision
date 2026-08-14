@@ -18,7 +18,7 @@ const testToolSignal = new AbortController().signal
 let dir: string
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'dsh-tool-vision-'))
+  dir = await mkdtemp(join(tmpdir(), 'mimo-vision-'))
 })
 afterEach(async () => {
   vi.unstubAllGlobals()
