@@ -104,6 +104,16 @@ OPENCODE_GO_API_KEY: sk-...
 
 重启后验证：在 DSH 设置里应能看到 `@deepseek-ai/dsh-tool-vision`，可用工具里出现 `describe_image`；也可以直接对模型说"用 describe_image 描述某张图"实测。
 
+### 卸载
+
+`dsh plugin remove` 收的是**包名**（profile `dependencies` 里的键），不是安装源：
+
+```bash
+dsh plugin --profile web remove @deepseek-ai/dsh-tool-vision
+```
+
+> 传 `github:wulusai2333/mimo-vision` 会报 `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS`（"no such dependency found"）——因为依赖是按包名 `@deepseek-ai/dsh-tool-vision` 记录的，`remove` 要用这个键。该命令会同时移除依赖和 bundle 层。
+
 ---
 
 ## 配置项（均可选，有默认值）
