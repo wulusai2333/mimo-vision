@@ -1,0 +1,13 @@
+# Example patch mounting the vision tool. Drop this package into
+# `packages/vision/tool-vision`, then add the lines below to your profile's
+# `cordis.patch.yml` (or pass `--patch ./cordis.yml`). Every config field is
+# optional and defaults in code; the block below shows the defaults explicitly.
+
+- id: vision
+  name: '@deepseek-ai/dsh-tool-vision'
+  config:
+    allowPaid: true
+    freeBaseUrl: 'https://opencode.ai/zen/v1'
+    freeModel: 'mimo-v2.5-free'
+    paidBaseUrl: 'https://opencode.ai/zen/go/v1'
+    paidModel: 'mimo-v2.5'

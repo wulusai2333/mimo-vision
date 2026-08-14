@@ -1,6 +1,12 @@
-# mimo-vision
+# mimo-vision · DSH 原生视觉插件
 
-跨工具视觉 MCP server：把图片发给多模态模型（mimo-v2.5 系），把返回的文字描述交给主模型。stdio + JSON-RPC 2.0，Python 3 标准库、**零第三方依赖**，Windows / WSL / macOS / Linux 通用。
+**mimo-vision** 是一个 **DeepSeek Harness（DSH）原生插件**，包名 `@deepseek-ai/dsh-tool-vision`。它注册一个 `describe_image` 工具：把图片发给 mimo-v2.5 系多模态模型，把返回的**文字描述**交给主模型——专为主模型（如 `deepseek-v4-flash`）没有视觉输入能力的场景做的"视觉桥"。
+
+它不是独立进程，而是 DSH 里"一切皆插件"的一等公民：
+
+- **注册即效果**：`describe_image` 经 `ctx.tools.register(defineTool(...))` 挂载，插件卸载自动反注册（热重载安全）。
+- **能力走接缝**：key 发现走 `ctx.credentials`，文件读取走 `ctx.fs`（随沙箱 / 远端文件系统走）。
+- **inject 声明依赖**：`inject: ['tools', 'fs', 'credentials']`，服务就位才激活。
 
 ## 工具
 
@@ -8,104 +14,139 @@
 |---|---|---|
 | `describe_image` | `path`（必填）、`question`（可选） | 描述图片文件，返回文字 |
 
+用法示例（对模型说）：`用 describe_image 描述 D:\photos\cat.png，重点看它是什么品种的猫`。
+
 ## 工作原理
 
-1. **API key 解析**：显式环境变量优先（约定俗成配置），否则自动发现当前工具的 auth 文件（零配置兜底）。
-2. **线路选择**：默认免费 Zen 线路（`mimo-v2.5-free`，200K 上下文）；请求失败（超时 / 任意 4xx/5xx）时每请求回退到付费 Go 线路（`mimo-v2.5`，1M）一次；`MIMO_VISION_ALLOW_PAID=false` 可禁用付费兜底。
-3. **图片预处理**：检测到 ImageMagick 时缩放长边 ≤ 2048px、JPEG q85、`-strip` 去元数据；否则原图直发。
+1. **key 解析**：`ctx.credentials.resolve` 按 `OPENCODE_GO_API_KEY` → `OPENCODE_API_KEY` 取第一个非空（DSH 凭据分层：进程 env > `~/.dsh/.credentials.yaml` > `.env`）。
+2. **读图**：`ctx.fs.resolve`（相对路径按会话 workspace cwd 解析）→ `ctx.fs.readBytes`（20 MiB 上限）→ base64。
+3. **线路**：免费 Zen（`mimo-v2.5-free`）优先；失败（非 2xx / 超时）每请求回退付费 Go（`mimo-v2.5`）一次；`allowPaid: false` 禁用付费兜底。
 
-设计决策见 [adr/0001-cross-tool-vision-mcp-auto-apikey.md](adr/0001-cross-tool-vision-mcp-auto-apikey.md)。
+设计决策见 [adr/0002-dsh-native-plugin.md](adr/0002-dsh-native-plugin.md)（取代了此前的 MCP 方案 ADR-0001）。
 
-## 配置方式
+---
 
-### 方式一：显式配置（约定俗成，推荐固定/生产环境）
+## 快速安装（npm 安装的 DSH，推荐）
 
-**Codex**（`~/.codex/config.toml`）：
+> 适用于 `npx @deepseek-ai/dsh web` 或全局安装的 DSH。仓库已附**预构建产物**（`lib/index.js`），无需安装任何构建工具链。
 
-```toml
-[mcp_servers.mimo-vision]
-command = 'python'
-args = ['C:\path\to\mimo-vision\vision_server.py']
-startup_timeout_sec = 120
+**前置**：Node `^22.19 || >=24`，DSH 已能正常启动。
 
-[mcp_servers.mimo-vision.env]
-OPENCODE_API_KEY = 'sk-...'
-MIMO_VISION_BASE_URL = 'https://opencode.ai/zen/v1'
-MIMO_VISION_MODEL = 'mimo-v2.5-free'
+### 第 1 步 · 放入插件
+
+把本仓库的 `package.json` 和 `lib/` 复制到 profile 的 node_modules：
+
+<details>
+<summary>Windows PowerShell</summary>
+
+```powershell
+$dst = "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh-tool-vision"
+New-Item -ItemType Directory -Path $dst -Force | Out-Null
+Copy-Item package.json -Destination $dst -Force
+Copy-Item lib -Destination $dst -Recurse -Force
 ```
 
-**Claude Desktop / Claude Code**（`claude_desktop_config.json` / 项目 `.mcp.json`）：
+</details>
 
-```json
-{
-  "mcpServers": {
-    "mimo-vision": {
-      "command": "python",
-      "args": ["C:\\path\\to\\mimo-vision\\vision_server.py"],
-      "env": {
-        "OPENCODE_API_KEY": "sk-...",
-        "MIMO_VISION_BASE_URL": "https://opencode.ai/zen/v1",
-        "MIMO_VISION_MODEL": "mimo-v2.5-free"
-      }
-    }
-  }
-}
+<details>
+<summary>macOS / Linux (bash)</summary>
+
+```bash
+dst="$HOME/.dsh/profiles/node_modules/@deepseek-ai/dsh-tool-vision"
+mkdir -p "$dst"
+cp package.json "$dst/"
+cp -r lib "$dst/"
 ```
 
-### 方式二：零配置（自动发现，推荐本机日常）
+</details>
 
-`env` 不填任何值，server 按优先级自动复用已登录的 key：
+> 上面的路径是 profile 的**插件解析根**（`~/.dsh/profiles/node_modules`），DSH 的 loader 就是从这里按包名 `@deepseek-ai/dsh-tool-vision` 解析插件。
 
-1. 环境变量：`OPENCODE_API_KEY` > `OPENCODE_GO_API_KEY`
-2. `~/.dsh/.credentials.yaml`（DSH 凭据；优先取 `OPENCODE_GO_API_KEY`，其次 `OPENCODE_API_KEY`）
-3. `~/.local/share/opencode/auth.json`（仅 `opencode-go` / `opencode_go`，不取无关 provider）
+### 第 2 步 · 注册进组合
 
-## 环境变量
+编辑 `~/.dsh/profiles/web/cordis.patch.yml`（用哪个 profile 就改哪个目录），加入：
 
-| 变量 | 说明 | 默认 |
+```yaml
+- insert:
+    - id: tool-vision
+      name: '@deepseek-ai/dsh-tool-vision'
+      config:
+        allowPaid: true
+```
+
+### 第 3 步 · 配置 key
+
+在 `~/.dsh/.credentials.yaml` 里给一个 opencode key（`OPENCODE_GO_API_KEY` 优先，`OPENCODE_API_KEY` 兜底）：
+
+```yaml
+OPENCODE_GO_API_KEY: sk-...
+```
+
+> 也可以放在启动 DSH 的进程环境变量里（`OPENCODE_GO_API_KEY=... dsh web`）。凭据接缝的分层优先级：进程 env > `.credentials.yaml` > `.env`。
+
+### 第 4 步 · 重启并验证
+
+**首次接入需重启一次 DSH**（让进程把新包 `import` 进来）。之后改这个插件的代码或 `allowPaid` 等配置，才是"免重启热更新"。
+
+重启后验证：在 DSH 设置里应能看到 `@deepseek-ai/dsh-tool-vision`，可用工具里出现 `describe_image`；也可以直接对模型说"用 describe_image 描述某张图"实测。
+
+---
+
+## 配置项（均可选，有默认值）
+
+| 字段 | 默认 | 说明 |
 |---|---|---|
-| `OPENCODE_API_KEY` / `OPENCODE_GO_API_KEY` | 显式 key（`OPENCODE_API_KEY` 优先） | 无 |
-| `MIMO_VISION_BASE_URL` | 显式线路 base URL（跳过自动选路，单线路不兜底） | 无 |
-| `MIMO_VISION_MODEL` | 显式模型（同上） | 无 |
-| `MIMO_VISION_ALLOW_PAID` | 是否允许付费线路兜底（`false`/`0`/`no`/`off` 禁用） | `true` |
+| `allowPaid` | `true` | 是否允许免费线路失败后回退付费线路 |
+| `freeBaseUrl` | `https://opencode.ai/zen/v1` | 免费线路 base URL |
+| `freeModel` | `mimo-v2.5-free` | 免费线路模型 |
+| `paidBaseUrl` | `https://opencode.ai/zen/go/v1` | 付费线路 base URL |
+| `paidModel` | `mimo-v2.5` | 付费线路模型 |
 
-## 开发
+最小注册只写 `allowPaid` 即可，其余用默认值：
+
+```yaml
+- insert:
+    - id: tool-vision
+      name: '@deepseek-ai/dsh-tool-vision'
+      config:
+        allowPaid: false
+```
+
+---
+
+## 从源码构建 / 开发（DSH monorepo）
+
+要改插件源码，把它放进 DSH 源码树，走仓库门禁：
 
 ```bash
-python -m unittest discover -s tests   # 运行全部测试
-python vision_server.py                # 以 stdio 方式启动
+# 1. 复制本仓库为 packages/vision/tool-vision
+cp -r /path/to/mimo-vision <dsh>/deepseek-harness/packages/vision/tool-vision
+
+# 2. 安装并验证（tsc 类型检查 + vitest 单测 + oxlint）
+cd <dsh>/deepseek-harness
+pnpm install
+npx tsc -b packages/vision/tool-vision   # 类型检查
+npx vitest run packages/vision/tool-vision   # 单测
+npx oxlint packages/vision/tool-vision       # lint
+
+# 3. 产出 lib/index.js（预构建产物）
+cd packages/vision/tool-vision
+npx tsdown lib/types/index.js lib/types/invariant.js \
+  --out-dir lib --format esm --platform node --target es2024 --fixed-extension false
 ```
 
-## 安装 / 发布
-
-项目已按可发布包结构组织（`pyproject.toml`，运行时零第三方依赖）：
-
-```bash
-pip install .            # 本地安装，得到 `mimo-vision` 命令
-mimo-vision              # 直接以 stdio 方式启动（等价于 python vision_server.py）
-```
-
-其他机器（无需手动装依赖）：
-
-```bash
-uvx --from /path/to/mimo-vision mimo-vision   # 从本地目录运行
-uvx mimo-vision                                # 发布到 PyPI 后一行运行
-```
-
-安装后注册可简化为（Codex）：
-
-```toml
-[mcp_servers.mimo-vision]
-command = 'mimo-vision'
-startup_timeout_sec = 120
-```
-
+> 说明：`@deepseek-ai/dsh-*` 内部包未发布 npm，因此插件不能 `npm install` 独立安装；要么用上面"快速安装"的预构建产物，要么放进 monorepo 从源码跑。
 
 ## 失败语义
 
-任何失败（无 key、双线路失败、文件不存在、非图片、预处理异常）都以**工具级错误**返回：`{isError: true, content: [{type: "text", text: "可操作提示"}]}`，进程不退出、连接不断开。
+任何失败（无 key、双线路失败、文件不存在 / 非普通文件、超限、非图片响应）都以**工具级错误**返回：`execute` throw，注册表物化为 `isError`，进程不退出、会话不断。
 
 ## 安全
 
-- 只读 ADR 列出的指定 auth 文件（含 `~/.dsh/.credentials.yaml`），不扫描目录、不打印 / 写盘 / 上传 key；
-- key 仅在请求头 `Authorization: Bearer ...` 中使用。
+- key 仅经 `ctx.credentials.resolve` 读取，不打印、不写盘、不扫描目录；
+- key 仅用于请求头 `Authorization: Bearer ...`；
+- 图片经 `ctx.fs` 读入内存后即 base64 直发，不落盘。
+
+## License
+
+MIT
