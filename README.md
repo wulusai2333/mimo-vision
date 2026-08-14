@@ -2,11 +2,14 @@
 
 **mimo-vision** 是一个 **DeepSeek Harness（DSH）原生插件**，包名 `@deepseek-ai/dsh-tool-vision`。它注册一个 `describe_image` 工具：把图片发给 mimo-v2.5 系多模态模型，把返回的**文字描述**交给主模型——专为主模型（如 `deepseek-v4-flash`）没有视觉输入能力的场景做的"视觉桥"。
 
-它不是独立进程，而是 DSH 里"一切皆插件"的一等公民：
+它不是独立进程，而是 DSH 里"一切皆插件"的一等公民：`apply` 只有一个动作——把能力注册成 dsh 的一等公民工具，依赖、文件、凭据、子进程全部走 dsh 已定义的能力接缝，卸载即干净回收。
 
-- **注册即效果**：`describe_image` 经 `ctx.tools.register(defineTool(...))` 挂载，插件卸载自动反注册（热重载安全）。
-- **能力走接缝**：key 发现走 `ctx.credentials`，文件读取走 `ctx.fs`（随沙箱 / 远端文件系统走）。
-- **inject 声明依赖**：`inject: ['tools', 'fs', 'credentials']`，服务就位才激活。
+### 实现范式：DSH 原生插件原语的直接落地
+
+- **注册即可逆效果**：`apply(ctx)` 里只有一句 `ctx.tools.register(defineTool(...))`。`register()` 返回 disposer，插件纤程 dispose 即反注册工具、schema 自动撤出 system-prompt。没有任何残留清理代码——卸载干净是**结构保证**，而非靠开发者手写清理。
+- **`inject` 声明依赖**：`export const inject = ['tools', 'fs', 'credentials']`，走纯 Cordis 余效果规范，等接缝就位才激活。`transcode.ts` 里的 `ctx.get('subprocess')` 是可选能力、带缺省降级，用在执行期而非激活期。整套是「声明依赖」，不是「探测依赖」。
+- **能力全部走 dsh 无缝**：文件读走 `ctx.fs.resolve/stat/readBytes` + `ctx.emit('fs/observed')`，凭据走 `ctx.credentials.resolve(credentialRef(...))` 且不手写解析，子进程（转码）走 `ctx.subprocess`。插件自身不碰任何 dsh 之外的进程 / 文件 / 网络边界。
+- **可卸载 / 可组合**：卸载是纯粹的——disposer 一跑即干净回收，无落盘、无 timer、无长连接需要手动收尾。
 
 ## 工具
 

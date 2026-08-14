@@ -49,3 +49,12 @@ _Avoid_: 凭据文件、key 解析
 
 **describe_image**:
 本插件注册的唯一工具，签名 `(path, question?)`，协议保持稳定。
+
+## Built-in paradigm（核心范式）
+
+本插件是 DSH「一切皆插件」原语的直接落地——`apply` 只有一个动作：把能力注册成 dsh 的一等公民工具。依赖、文件、凭据、子进程全部走 dsh 已定义的能力接缝，卸载即干净回收。
+
+- **注册即可逆 effect**：`apply` 仅 `ctx.tools.register(defineTool(...))`；派发即反注册、schema 自动撤出 system-prompt，卸载干净是**结构保证**而非手写清理。
+- **`inject` 声明依赖**：`['tools','fs','credentials']` 纯 Cordis 余效果；`subprocess` 为可选能力、缺省降级、用在执行期。是「声明依赖」，不是「探测依赖」。
+- **能力走接缝**：文件 `ctx.fs` + `fs/observed`，凭据 `ctx.credentials.resolve`（不手写解析），转码 `ctx.subprocess`；不碰 dsh 之外的任何边界。
+- **可卸载 / 可组合**：disposer 一跑即干净回收，无落盘、无 timer、无长连接需手动收尾。
