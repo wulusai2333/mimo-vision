@@ -239,4 +239,14 @@ describe('describe_image execution', () => {
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('all vision routes failed')
   })
+
+  it('rejects a non-image extension before any network or file I/O', async () => {
+    await writeFile(join(dir, 'notes.txt'), 'hello')
+    stubVision('unreachable')
+    const ctx = await setup()
+    const result = await describeImage(ctx, { path: 'notes.txt' }, agent())
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('only BMP/GIF/JPEG/PNG/WebP')
+    expect(fetch).not.toHaveBeenCalled()
+  })
 })

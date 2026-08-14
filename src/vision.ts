@@ -16,13 +16,14 @@ export const DEFAULT_PROMPT =
 /** Per-request wall-clock budget, independent of any caller cancellation. */
 export const REQUEST_TIMEOUT_MS = 120_000
 
-/** Extension → declared image media type; anything else is sent as-is with a binary mime. */
+/** Extension → declared image media type, the supported set the vision endpoint actually decodes. */
 const MIME_BY_EXT: Readonly<Record<string, string>> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
 }
 
 const BROWSER_UA =
@@ -32,12 +33,12 @@ const BROWSER_UA =
 /**
  * Map a file path to its declared image media type by extension.
  * @param path - the file path the model supplied.
- * @returns the media type, or `application/octet-stream` for an unknown extension.
+ * @returns the media type, or `undefined` when the path does not claim a supported image format.
  */
-export function guessMime(path: string): string {
+export function guessMime(path: string): string | undefined {
   const dot = path.lastIndexOf('.')
-  if (dot < 0) return 'application/octet-stream'
-  return MIME_BY_EXT[path.slice(dot).toLowerCase()] ?? 'application/octet-stream'
+  if (dot < 0) return undefined
+  return MIME_BY_EXT[path.slice(dot).toLowerCase()]
 }
 
 /** Wire payload of one chat-completions request: a text prompt plus one image data URL. */

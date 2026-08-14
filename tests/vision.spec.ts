@@ -67,11 +67,12 @@ describe('guessMime', () => {
     expect(guessMime('b.jpeg')).toBe('image/jpeg')
     expect(guessMime('c.gif')).toBe('image/gif')
     expect(guessMime('d.WebP')).toBe('image/webp')
+    expect(guessMime('e.BMP')).toBe('image/bmp')
   })
 
-  it('falls back to a binary mime for unknown or missing extensions', () => {
-    expect(guessMime('notes.txt')).toBe('application/octet-stream')
-    expect(guessMime('no-extension')).toBe('application/octet-stream')
+  it('returns undefined for unknown or missing extensions', () => {
+    expect(guessMime('notes.txt')).toBeUndefined()
+    expect(guessMime('no-extension')).toBeUndefined()
   })
 })
 

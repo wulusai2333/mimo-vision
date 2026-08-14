@@ -13,9 +13,9 @@ export declare const REQUEST_TIMEOUT_MS = 120000;
 /**
  * Map a file path to its declared image media type by extension.
  * @param path - the file path the model supplied.
- * @returns the media type, or `application/octet-stream` for an unknown extension.
+ * @returns the media type, or `undefined` when the path does not claim a supported image format.
  */
-export declare function guessMime(path: string): string;
+export declare function guessMime(path: string): string | undefined;
 /** Wire payload of one chat-completions request: a text prompt plus one image data URL. */
 export interface ChatPayload {
     model: string;

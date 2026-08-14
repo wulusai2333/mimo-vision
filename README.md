@@ -14,6 +14,8 @@
 |---|---|---|
 | `describe_image` | `path`（必填）、`question`（可选） | 描述图片文件，返回文字 |
 
+支持图片格式：**PNG / JPEG / GIF / WebP / BMP**（均已实测可被视觉模型解码）；其它扩展名会直接报错，不会静默发送。
+
 用法示例（对模型说）：`用 describe_image 描述 D:\photos\cat.png，重点看它是什么品种的猫`。
 
 ## 工作原理
@@ -139,7 +141,7 @@ npx tsdown lib/types/index.js lib/types/invariant.js \
 
 ## 失败语义
 
-任何失败（无 key、双线路失败、文件不存在 / 非普通文件、超限、非图片响应）都以**工具级错误**返回：`execute` throw，注册表物化为 `isError`，进程不退出、会话不断。
+任何失败（无 key、非支持格式、双线路失败、文件不存在 / 非普通文件、超限、非图片响应）都以**工具级错误**返回：`execute` throw，注册表物化为 `isError`，进程不退出、会话不断。
 
 ## 安全
 

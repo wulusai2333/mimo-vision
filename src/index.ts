@@ -99,6 +99,12 @@ export function apply(ctx: Context, config: Config): void {
     // Read-only remote call with no shared mutable state; concurrent calls cannot conflict.
     isConcurrencySafe: () => true,
     async execute(args, exec) {
+      const mime = guessMime(args.path)
+      if (mime === undefined) {
+        throw new Error(
+          `cannot describe "${args.path}": only BMP/GIF/JPEG/PNG/WebP images are supported`,
+        )
+      }
       const key = await resolveVisionKey(resolveCredential)
       if (key === undefined) {
         throw new Error(
@@ -110,7 +116,6 @@ export function apply(ctx: Context, config: Config): void {
       const bytes = await ctx.fs.readBytes(target, exec.signal, MAX_IMAGE_BYTES)
       ctx.emit('fs/observed', target, { kind: 'present', version: info.version }, exec)
       const imageBase64 = Buffer.from(bytes).toString('base64')
-      const mime = guessMime(args.path)
       return callVision({
         key,
         imageBase64,
