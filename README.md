@@ -1,62 +1,62 @@
-# mimo-vision · DSH 原生视觉插件
+# mimo-vision · Native vision plugin for DSH
 
-**mimo-vision** 是一个 **DeepSeek Harness（DSH）原生插件**，包名 `mimo-vision`。它注册一个 `describe_image` 工具：把图片发给 mimo-v2.5 系多模态模型，把返回的**文字描述**交给主模型——专为主模型（如 `deepseek-v4-flash`）没有视觉输入能力的场景做的"视觉桥"。
+**mimo-vision** is a native plugin for **DeepSeek Harness (DSH)**, package name `mimo-vision`. It registers a `describe_image` tool that sends an image to a mimo-v2.5-series multimodal model and returns the **text description** to the main model — a "vision bridge" built for main models (e.g. `deepseek-v4-flash`) that have no vision input of their own.
 
-它不是独立进程，而是 DSH 里"一切皆插件"的一等公民：`apply` 只有一个动作——把能力注册成 dsh 的一等公民工具，依赖、文件、凭据、子进程全部走 dsh 已定义的能力接缝，卸载即干净回收。
+It is not a standalone process: it is a first-class citizen of DSH's "everything is a plugin" model. `apply` does exactly one thing — registers the capability as a first-class dsh tool. Dependencies, files, credentials, and subprocesses all go through dsh's defined capability seams; uninstalling cleans up cleanly.
 
-### 实现范式：DSH 原生插件原语的直接落地
+### Implementation paradigm: a direct landing of DSH's native plugin primitives
 
-- **注册即可逆效果**：`apply(ctx)` 里只有一句 `ctx.tools.register(defineTool(...))`。`register()` 返回 disposer，插件纤程 dispose 即反注册工具、schema 自动撤出 system-prompt。没有任何残留清理代码——卸载干净是**结构保证**，而非靠开发者手写清理。
-- **`inject` 声明依赖**：`export const inject = ['tools', 'fs', 'credentials']`，走纯 Cordis 余效果规范，等接缝就位才激活。`transcode.ts` 里的 `ctx.get('subprocess')` 是可选能力、带缺省降级，用在执行期而非激活期。整套是「声明依赖」，不是「探测依赖」。
-- **能力全部走 dsh 接缝**：文件读走 `ctx.fs.resolve/stat/readBytes` + `ctx.emit('fs/observed')`，凭据走 `ctx.credentials.resolve(credentialRef(...))` 且不手写解析，子进程（转码）走 `ctx.subprocess`。唯一例外：转码的临时中间文件经 `node:fs` 写入系统临时目录（见下方 Known Limitations）。
-- **可卸载 / 可组合**：卸载是纯粹的——disposer 一跑即干净回收，无落盘、无 timer、无长连接需要手动收尾。
+- **Registration is reversible by construction**: `apply(ctx)` contains a single `ctx.tools.register(defineTool(...))`. `register()` returns a disposer; when the plugin fiber disposes, the tool is unregistered and its schema is automatically withdrawn from the system prompt. There is no leftover cleanup code — clean uninstall is a **structural guarantee**, not hand-written cleanup.
+- **`inject` declares dependencies**: `export const inject = ['tools', 'fs', 'credentials']` follows the pure Cordis effect spec — activation only happens once the seams are in place. `ctx.get('subprocess')` in `transcode.ts` is an optional capability with a default fallback, used at execution time, not activation time. This is "declared dependencies", not "probed dependencies".
+- **All capabilities go through dsh seams**: file reads use `ctx.fs.resolve/stat/readBytes` + `ctx.emit('fs/observed')`; credentials use `ctx.credentials.resolve(credentialRef(...))` with no hand-rolled parsing; subprocess (transcoding) uses `ctx.subprocess`. The one exception: transcode temp files are written via `node:fs` to the system temp directory (see Known Limitations below).
+- **Uninstallable / composable**: uninstall is pure — the disposer runs and everything is reclaimed: no disk writes, no timers, no long-lived connections to manually wind down.
 
-## 工具
+## Tool
 
-| 工具 | 参数 | 说明 |
+| Tool | Arguments | Description |
 |---|---|---|
-| `describe_image` | `path`（必填）、`question`（可选） | 描述图片文件，返回文字 |
+| `describe_image` | `path` (required), `question` (optional) | Describes an image file and returns text |
 
-支持图片格式：
+Supported image formats:
 
-- **原生直发**：PNG / JPEG / GIF / WebP / BMP（均已实测可被视觉模型解码）
-- **自动转码**：SVG / TIFF / HEIC / PSD / ICO / EXR / JP2 / JXL / AVIF——本机装有 ImageMagick 时自动转成 PNG 再发，并缩到长边 ≤2048px（省 token）
-- 其它扩展名、或转码格式未装 ImageMagick 时，直接返回明确报错（不静默发送）
+- **Sent natively**: PNG / JPEG / GIF / WebP / BMP (all verified decodable by the vision model)
+- **Auto-transcoded**: SVG / TIFF / HEIC / PSD / ICO / EXR / JP2 / JXL / AVIF — when ImageMagick is installed locally, these are transcoded to PNG before sending, downscaled to a ≤2048px long edge (saves tokens)
+- Any other extension, or a transcode-format when ImageMagick is not installed, returns an explicit error (never sent silently)
 
-用法示例（对模型说）：`用 describe_image 描述 D:\photos\cat.png，重点看它是什么品种的猫`。
+Usage example (tell the model): `Use describe_image to describe D:\photos\cat.png, focusing on what breed of cat it is`.
 
-## 工作原理
+## How it works
 
-1. **key 解析**：`ctx.credentials.resolve` 按 `OPENCODE_GO_API_KEY` → `OPENCODE_API_KEY` 取第一个非空（DSH 凭据分层：进程 env > `~/.dsh/.credentials.yaml` > `.env`）。
-2. **读图**：`ctx.fs.resolve`（相对路径按会话 workspace cwd 解析）→ `ctx.fs.readBytes`（20 MiB 上限）；非原生格式（SVG/TIFF/HEIC…）经 ImageMagick（走 `ctx.subprocess` 接缝）转成 PNG 并缩到长边 2048px → base64。
-3. **线路**：免费 Zen（`mimo-v2.5-free`）优先；失败（非 2xx / 超时）每请求回退付费 Go（`mimo-v2.5`）一次；`allowPaid: false` 禁用付费兜底。
+1. **Key resolution**: `ctx.credentials.resolve` takes the first non-empty of `OPENCODE_GO_API_KEY` → `OPENCODE_API_KEY` (DSH credential layering: process env > `~/.dsh/.credentials.yaml` > `.env`).
+2. **Read the image**: `ctx.fs.resolve` (relative paths resolve against the session workspace cwd) → `ctx.fs.readBytes` (20 MiB cap); non-native formats (SVG/TIFF/HEIC…) are transcoded to PNG via ImageMagick (through the `ctx.subprocess` seam) and downscaled to a 2048px long edge → base64.
+3. **Routing**: the free Zen route (`mimo-v2.5-free`) is tried first; on failure (non-2xx / timeout) it falls back to the paid Go route (`mimo-v2.5`) once per request; `allowPaid: false` disables the paid fallback.
 
-设计决策见 [adr/0002-dsh-native-plugin.md](adr/0002-dsh-native-plugin.md)（取代了此前的 MCP 方案 ADR-0001）。
+Design decisions are documented in [adr/0002-dsh-native-plugin.md](adr/0002-dsh-native-plugin.md) (which supersedes the earlier MCP approach, ADR-0001).
 
 ---
 
-## 快速安装（npm 安装的 DSH，推荐）
+## Quick install (npm-installed DSH, recommended)
 
-> 适用于 `npx @deepseek-ai/dsh web` 或全局安装的 DSH。仓库已附**预构建产物**（`lib/index.js`），无需安装任何构建工具链。
+> For `npx @deepseek-ai/dsh web` or a globally installed DSH. The repo ships **prebuilt artifacts** (`lib/index.js`) — no build toolchain required.
 
-**前置**：Node `^22.19 || >=24`，DSH 已能正常启动。
+**Prerequisite**: Node `^22.19 || >=24`, and DSH already able to start.
 
-### 第 0 步 · 安装并激活（一条命令）
+### Step 0 · Install and activate (one command)
 
-mimo-vision 声明了 `dsh.bundle`（见 `package.json` 的 `dsh` 字段），所以 `dsh plugin add` 会把它 reconcile 成 profile 的一个 bundle 层，**装包、挂层、激活工具一次完成**：
+mimo-vision declares `dsh.bundle` (see the `dsh` field in `package.json`), so `dsh plugin add` reconciles it as a bundle layer of the profile — **installing the package, mounting the layer, and activating the tool happen in one step**:
 
 ```bash
 dsh plugin --profile web add github:wulusai2333/mimo-vision
 ```
 
-> 若仓库不在默认分支，用 `github:wulusai2333/mimo-vision#<branch-or-tag>`。
-> 该路径依赖 DSH 在 `~/.dsh/profiles/node_modules` 维护的**依赖闭包**（把全部 `@deepseek-ai/*` 接缝 symlink 到 dsh 安装树），所以插件的运行时 `import "@deepseek-ai/dsh-tools"` 等会解析到**与 DSH 同一份实例**——单例安全、`register()`/`inject` 语义不变。
-> GitHub 源安装的前提是本仓库**提交了预构建 `lib/`**（与 `src/` 同步）：pnpm 装的是带 `lib/` 的源码，不触发构建、也无需 `allowBuilds`。
+> If the repo is not on its default branch, use `github:wulusai2333/mimo-vision#<branch-or-tag>`.
+> This path relies on the **dependency closure** that DSH maintains in `~/.dsh/profiles/node_modules` (symlinking all `@deepseek-ai/*` seams to the dsh install tree), so the plugin's runtime `import "@deepseek-ai/dsh-tools"` etc. resolves to the **same instance DSH uses** — singleton-safe, `register()`/`inject` semantics unchanged.
+> GitHub-source installs require this repo to commit a **prebuilt `lib/`** (kept in sync with `src/`): pnpm installs the source with `lib/` included, no build runs, no `allowBuilds` needed.
 
 <details>
-<summary>离线 / 从源码手动挂载（没有 pnpm 时的备用路径）</summary>
+<summary>Offline / manual mount from source (fallback path when pnpm is unavailable)</summary>
 
-手动把产物放进 profile 的插件解析根，再在 profile 的 `cordis.patch.yml` 里挂 patch（等价于 bundle 自动挂载，但需手动两步）：
+Manually copy the artifacts into the profile's plugin resolution root, then mount the patch in the profile's `cordis.patch.yml` (equivalent to automatic bundle mounting, but two manual steps):
 
 ```powershell
 # Windows PowerShell
@@ -76,7 +76,7 @@ cp cordis.patch.yml "$dst/"
 cp -r lib "$dst/"
 ```
 
-再编辑 `~/.dsh/profiles/web/cordis.patch.yml`，加入：
+Then edit `~/.dsh/profiles/web/cordis.patch.yml` and add:
 
 ```yaml
 - insert:
@@ -88,45 +88,45 @@ cp -r lib "$dst/"
 
 </details>
 
-### 第 1 步 · 配置 key
+### Step 1 · Configure the key
 
-在 `~/.dsh/.credentials.yaml` 里给一个 opencode key（`OPENCODE_GO_API_KEY` 优先，`OPENCODE_API_KEY` 兜底）：
+Put an opencode key in `~/.dsh/.credentials.yaml` (`OPENCODE_GO_API_KEY` preferred, `OPENCODE_API_KEY` as fallback):
 
 ```yaml
 OPENCODE_GO_API_KEY: sk-...
 ```
 
-> 也可以放在启动 DSH 的进程环境变量里（`OPENCODE_GO_API_KEY=... dsh web`）。凭据接缝的分层优先级：进程 env > `.credentials.yaml` > `.env`。
+> You can also put it in the environment of the process that starts DSH (`OPENCODE_GO_API_KEY=... dsh web`). Credential seam layering priority: process env > `.credentials.yaml` > `.env`.
 
-### 第 2 步 · 重启并验证
+### Step 2 · Restart and verify
 
-**首次接入需重启一次 DSH**（让进程把新包 `import` 进来）。之后改这个插件的代码或 `allowPaid` 等配置，才是"免重启热更新"。
+**A restart is required on first integration** (so the process `import`s the new package). After that, changes to this plugin's code or config such as `allowPaid` hot-reload without restart.
 
-重启后验证：在 DSH 设置里应能看到 `mimo-vision`，可用工具里出现 `describe_image`；也可以直接对模型说"用 describe_image 描述某张图"实测。
+After restarting, verify: `mimo-vision` should appear in DSH's settings, with `describe_image` among the available tools; or just tell the model "use describe_image to describe some image" and try it.
 
-### 卸载
+### Uninstall
 
-`dsh plugin remove` 收的是**包名**（profile `dependencies` 里的键），不是安装源：
+`dsh plugin remove` takes the **package name** (the key in the profile's `dependencies`), not the install source:
 
 ```bash
 dsh plugin --profile web remove mimo-vision
 ```
 
-> 传 `github:wulusai2333/mimo-vision` 会报 `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS`（"no such dependency found"）——因为依赖是按包名 `mimo-vision` 记录的，`remove` 要用这个键。该命令会同时移除依赖和 bundle 层。
+> Passing `github:wulusai2333/mimo-vision` errors with `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS` ("no such dependency found") — the dependency is recorded by package name `mimo-vision`, so `remove` needs that key. The command removes both the dependency and the bundle layer.
 
 ---
 
-## 配置项（均可选，有默认值）
+## Configuration (all optional, defaults provided)
 
-| 字段 | 默认 | 说明 |
+| Field | Default | Description |
 |---|---|---|
-| `allowPaid` | `true` | 是否允许免费线路失败后回退付费线路 |
-| `freeBaseUrl` | `https://opencode.ai/zen/v1` | 免费线路 base URL |
-| `freeModel` | `mimo-v2.5-free` | 免费线路模型 |
-| `paidBaseUrl` | `https://opencode.ai/zen/go/v1` | 付费线路 base URL |
-| `paidModel` | `mimo-v2.5` | 付费线路模型 |
+| `allowPaid` | `true` | Whether to fall back to the paid route after the free route fails |
+| `freeBaseUrl` | `https://opencode.ai/zen/v1` | Free route base URL |
+| `freeModel` | `mimo-v2.5-free` | Free route model |
+| `paidBaseUrl` | `https://opencode.ai/zen/go/v1` | Paid route base URL |
+| `paidModel` | `mimo-v2.5` | Paid route model |
 
-最小注册只写 `allowPaid` 即可，其余用默认值：
+A minimal registration only sets `allowPaid`; everything else uses the defaults:
 
 ```yaml
 - insert:
@@ -138,45 +138,45 @@ dsh plugin --profile web remove mimo-vision
 
 ---
 
-## 从源码构建 / 开发（DSH monorepo）
+## Building from source / development (DSH monorepo)
 
-要改插件源码，把它放进 DSH 源码树，走仓库门禁：
+To modify the plugin source, put it into the DSH source tree and go through the repo gates:
 
 ```bash
-# 1. 复制本仓库为 packages/vision/tool-vision
+# 1. Copy this repo as packages/vision/tool-vision
 cp -r /path/to/mimo-vision <dsh>/deepseek-harness/packages/vision/tool-vision
 
-# 2. 安装并验证（tsc 类型检查 + vitest 单测 + oxlint）
+# 2. Install and verify (tsc typecheck + vitest unit tests + oxlint)
 cd <dsh>/deepseek-harness
 pnpm install
-npx tsc -b packages/vision/tool-vision   # 类型检查
-npx vitest run packages/vision/tool-vision   # 单测
+npx tsc -b packages/vision/tool-vision   # typecheck
+npx vitest run packages/vision/tool-vision   # unit tests
 npx oxlint packages/vision/tool-vision       # lint
 
-# 3. 产出 lib/index.js（预构建产物）
+# 3. Produce lib/index.js (prebuilt artifacts)
 cd packages/vision/tool-vision
 npx tsdown lib/types/index.js lib/types/invariant.js \
   --out-dir lib --format esm --platform node --target es2024 --fixed-extension false
 ```
 
-> 上述 2/3 步也可在包内用 `pnpm run test` / `pnpm run typecheck` / `pnpm run build` 执行（脚本已写入 `package.json`）。
+> Steps 2/3 can also be run inside the package with `pnpm run test` / `pnpm run typecheck` / `pnpm run build` (the scripts are in `package.json`).
 
-> 说明：`@deepseek-ai/dsh-*` 内部包未发布 npm，因此插件不能 `npm install` 独立安装；要么用上面"快速安装"的预构建产物，要么放进 monorepo 从源码跑。
+> Note: the `@deepseek-ai/dsh-*` internal packages are not published to npm, so the plugin cannot be installed standalone via `npm install`; either use the prebuilt artifacts from "Quick install" above, or run it from source inside the monorepo.
 
-## 失败语义
+## Failure semantics
 
-任何失败（无 key、非支持格式、双线路失败、文件不存在 / 非普通文件、超限、非图片响应）都以**工具级错误**返回：`execute` throw，注册表物化为 `isError`，进程不退出、会话不断。
+Any failure (no key, unsupported format, both routes failing, file missing / not a regular file, over the limit, non-image response) is returned as a **tool-level error**: `execute` throws, the registry materializes `isError`, the process does not exit and the session does not break.
 
 ## Known Limitations
 
-- **转码临时文件越过 `ctx.fs` 沙箱**：SVG/TIFF/HEIC 等非原生格式经 ImageMagick 转码时，源字节与产物 PNG 通过 `node:fs` 写入系统临时目录（`os.tmpdir()`），因为 `ctx.subprocess` 需要真实 OS 路径喂给本机 `magick`，而 `ctx.fs` 的 `FsTarget` 可能是抽象/远端/沙箱路径。这绕过了 `dsh-fs-sandbox` 的文件沙箱策略；临时目录在转换后立即删除。仅当本机装有 ImageMagick 且请求了转码格式时触发，原生格式（PNG/JPEG/GIF/WebP/BMP）不经过此路径。
-- **预构建 `lib/` 需与 `src/` 同步**：GitHub 源安装直接加载仓库里提交的 `lib/index.js`，不会在安装时构建。改 `src/` 后必须重建并提交 `lib/`，否则线上加载到旧产物。
+- **Transcode temp files bypass the `ctx.fs` sandbox**: when non-native formats (SVG/TIFF/HEIC…) are transcoded via ImageMagick, the source bytes and the resulting PNG go through `node:fs` to the system temp directory (`os.tmpdir()`), because `ctx.subprocess` needs real OS paths to feed the local `magick`, while `ctx.fs`'s `FsTarget` may be an abstract/remote/sandboxed path. This bypasses the `dsh-fs-sandbox` file sandbox policy; the temp directory is deleted immediately after conversion. It only triggers when ImageMagick is installed locally **and** a transcode format is requested — native formats (PNG/JPEG/GIF/WebP/BMP) never take this path.
+- **The prebuilt `lib/` must stay in sync with `src/`**: GitHub-source installs load the committed `lib/index.js` directly and never build at install time. After changing `src/`, rebuild and commit `lib/`, or the deployed version loads stale artifacts.
 
-## 安全
+## Security
 
-- key 仅经 `ctx.credentials.resolve` 读取，不打印、不写盘、不扫描目录；
-- key 仅用于请求头 `Authorization: Bearer ...`；
-- 图片经 `ctx.fs` 读入内存后即 base64 直发，不落盘（非原生格式转码时经系统临时目录中转，转换后即删）。
+- The key is only read via `ctx.credentials.resolve` — never printed, never written to disk, never directory-scanned;
+- The key is only used in the request header `Authorization: Bearer ...`;
+- Images are read into memory via `ctx.fs` and sent straight as base64, never written to disk (non-native formats are routed through the system temp dir during transcoding and deleted immediately after).
 
 ## License
 
