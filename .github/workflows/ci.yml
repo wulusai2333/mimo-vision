@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # This repo cannot `npm install` standalone: devDependencies are
+      # workspace:* links into the DSH monorepo (the @deepseek-ai/dsh-* seams
+      # are not published to npm). The checks below are the monorepo-free
+      # subset that still guards the common failure modes.
+      - name: Syntax-check committed prebuilt artifacts
+        run: node --check lib/index.js && node --check lib/invariant.js
+
+      # GitHub-source installs load the committed lib/ directly and never build
+      # at install time. If src/ was touched after lib/ was last built, the
+      # deployed artifacts are stale — fail instead of shipping them.
+      - name: Verify lib/ is not stale relative to src/
+        run: |
+          SRC=$(git log -1 --format=%ct -- src/)
+          LIB=$(git log -1 --format=%ct -- lib/)
+          if [ "$SRC" -gt "$LIB" ]; then
+            echo "src/ was last changed at commit date $SRC, later than lib/ ($LIB)" >&2
+            echo "rebuild and commit lib/ (pnpm run build) before pushing" >&2
+            exit 1
+          fi
+
+      - name: Verify package tarball contents
+        run: npm pack --dry-run --ignore-scripts --json >/dev/null
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
