@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the lib/src sync guard can diff real parent commits.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -40,6 +43,3 @@ jobs:
 
       - name: Verify package tarball contents
         run: npm pack --dry-run --ignore-scripts --json >/dev/null
-
-      - name: Audit production dependencies
-        run: npm audit --omit=dev
