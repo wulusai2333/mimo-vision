@@ -1,5 +1,7 @@
 # mimo-vision · DSH 原生视觉插件
 
+[English](README.md) | **中文**
+
 **mimo-vision** 是一个 **DeepSeek Harness（DSH）原生插件**，包名 `mimo-vision`。它注册一个 `describe_image` 工具：把图片发给 mimo-v2.5 系多模态模型，把返回的**文字描述**交给主模型——专为主模型（如 `deepseek-v4-flash`）没有视觉输入能力的场景做的"视觉桥"。
 
 它不是独立进程，而是 DSH 里"一切皆插件"的一等公民：`apply` 只有一个动作——把能力注册成 dsh 的一等公民工具，依赖、文件、凭据、子进程全部走 dsh 已定义的能力接缝，卸载即干净回收。

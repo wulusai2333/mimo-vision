@@ -1,5 +1,7 @@
 # mimo-vision · Native vision plugin for DSH
 
+**English** | [中文](README.zh.md)
+
 **mimo-vision** is a native plugin for **DeepSeek Harness (DSH)**, package name `mimo-vision`. It registers a `describe_image` tool that sends an image to a mimo-v2.5-series multimodal model and returns the **text description** to the main model — a "vision bridge" built for main models (e.g. `deepseek-v4-flash`) that have no vision input of their own.
 
 It is not a standalone process: it is a first-class citizen of DSH's "everything is a plugin" model. `apply` does exactly one thing — registers the capability as a first-class dsh tool. Dependencies, files, credentials, and subprocesses all go through dsh's defined capability seams; uninstalling cleans up cleanly.
