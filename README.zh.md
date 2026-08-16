@@ -22,7 +22,7 @@
 支持图片格式：
 
 - **原生直发**：PNG / JPEG / GIF / WebP / BMP（均已实测可被视觉模型解码）
-- **自动转码**：SVG / TIFF / HEIC / PSD / ICO / EXR / JP2 / JXL / AVIF——本机装有 ImageMagick 时自动转成 PNG 再发，并缩到长边 ≤2048px（省 token）
+- **自动转码**：SVG / TIFF（`.tif`）/ HEIC（`.heif`）/ PSD / ICO / EXR / JP2 / JXL / AVIF——本机装有 ImageMagick 时自动转成 PNG 再发，并缩到长边 ≤2048px（省 token）
 - 其它扩展名、或转码格式未装 ImageMagick 时，直接返回明确报错（不静默发送）
 
 用法示例（对模型说）：`用 describe_image 描述 D:\photos\cat.png，重点看它是什么品种的猫`。
@@ -48,6 +48,10 @@
 mimo-vision 声明了 `dsh.bundle`（见 `package.json` 的 `dsh` 字段），所以 `dsh plugin add` 会把它 reconcile 成 profile 的一个 bundle 层，**装包、挂层、激活工具一次完成**：
 
 ```bash
+# 从 npm registry 安装（正式发布后推荐）
+dsh plugin --profile web add mimo-vision
+
+# 从 GitHub 安装（源码安装，使用预构建 lib/）
 dsh plugin --profile web add github:wulusai2333/mimo-vision
 ```
 
@@ -157,13 +161,12 @@ npx oxlint packages/vision/tool-vision       # lint
 
 # 3. 产出 lib/index.js（预构建产物）
 cd packages/vision/tool-vision
-npx tsdown lib/types/index.js lib/types/invariant.js \
-  --out-dir lib --format esm --platform node --target es2024 --fixed-extension false
+pnpm run build
 ```
 
-> 上述 2/3 步也可在包内用 `pnpm run test` / `pnpm run typecheck` / `pnpm run build` 执行（脚本已写入 `package.json`）。
+> `pnpm run build` 会先执行 `tsc --build`（生成 tsdown 所需的中间产物 `lib/types/*.js`），再打包 `lib/index.js` / `lib/invariant.js`。上述 2/3 步也可在包内用 `pnpm run test` / `pnpm run typecheck` / `pnpm run build` 执行（脚本已写入 `package.json`）。
 
-> 说明：`@deepseek-ai/dsh-*` 内部包未发布 npm，因此插件不能 `npm install` 独立安装；要么用上面"快速安装"的预构建产物，要么放进 monorepo 从源码跑。
+> 说明：`@deepseek-ai/dsh-*` 接缝的版本由 DSH 依赖闭包统一管理，不由本包决定。peer 依赖已标记 optional，因此 `npm install mimo-vision` 可以独立完成安装，但插件只会在 DSH 内运行（闭包提供单例接缝）。开发时要么用上面"快速安装"的预构建产物，要么放进 monorepo 从源码跑。
 
 ## 失败语义
 

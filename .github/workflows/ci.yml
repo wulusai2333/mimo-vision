@@ -23,8 +23,8 @@ jobs:
 
       # This repo cannot `npm install` standalone: devDependencies are
       # workspace:* links into the DSH monorepo (the @deepseek-ai/dsh-* seams
-      # are not published to npm). The checks below are the monorepo-free
-      # subset that still guards the common failure modes.
+      # are versioned in the DSH dependency closure). The checks below are the
+      # monorepo-free subset that still guards the common failure modes.
       - name: Syntax-check committed prebuilt artifacts
         run: node --check lib/index.js && node --check lib/invariant.js
 
@@ -33,13 +33,52 @@ jobs:
       # deployed artifacts are stale — fail instead of shipping them.
       - name: Verify lib/ is not stale relative to src/
         run: |
-          SRC=$(git log -1 --format=%ct -- src/)
-          LIB=$(git log -1 --format=%ct -- lib/)
-          if [ "$SRC" -gt "$LIB" ]; then
-            echo "src/ was last changed at commit date $SRC, later than lib/ ($LIB)" >&2
+          SRC_COMMIT=$(git log -1 --format=%H -- src/)
+          LIB_COMMIT=$(git log -1 --format=%H -- lib/)
+          if [ "$SRC_COMMIT" != "$LIB_COMMIT" ] && ! git merge-base --is-ancestor "$SRC_COMMIT" "$LIB_COMMIT"; then
+            echo "src/ was last changed in commit $SRC_COMMIT, which is not an ancestor of lib/ last-change commit $LIB_COMMIT" >&2
             echo "rebuild and commit lib/ (pnpm run build) before pushing" >&2
             exit 1
           fi
+          echo "src/ last change: $SRC_COMMIT"
+          echo "lib/ last change: $LIB_COMMIT"
 
-      - name: Verify package tarball contents
-        run: npm pack --dry-run --ignore-scripts --json >/dev/null
+      - name: Verify package tarball contents and installability
+        run: |
+          npm pack --ignore-scripts --json > /tmp/mimo-vision-pack.json
+          node -e '
+            const fs = require("node:fs");
+            const pack = JSON.parse(fs.readFileSync("/tmp/mimo-vision-pack.json", "utf8"));
+            const files = pack[0].files.map(f => f.path);
+            const required = ["lib/index.js", "lib/invariant.js", "cordis.patch.yml", "lib/types/index.d.ts"];
+            for (const file of required) {
+              if (!files.includes(file)) {
+                console.error(`missing ${file} in tarball`);
+                process.exit(1);
+              }
+            }
+            if (files.some(f => f.startsWith("src/"))) {
+              console.error("src/ must not be shipped in the tarball");
+              process.exit(1);
+            }
+            console.log("tarball contents ok");
+          '
+          TGZ=$(node -e '
+            const fs = require("node:fs");
+            const pack = JSON.parse(fs.readFileSync("/tmp/mimo-vision-pack.json", "utf8"));
+            process.stdout.write(pack[0].filename);
+          ')
+          mkdir -p /tmp/mimo-vision-install-smoke
+          cd /tmp/mimo-vision-install-smoke
+          npm init -y >/dev/null
+          npm install "$GITHUB_WORKSPACE/$TGZ" --ignore-scripts --cache /tmp/mimo-vision-npm-cache --silent
+          node -e '
+            const pkg = require("mimo-vision/package.json");
+            if (pkg.name !== "mimo-vision") {
+              console.error(`unexpected package name: ${pkg.name}`);
+              process.exit(1);
+            }
+            console.log("install smoke ok");
+          '
+          cd "$GITHUB_WORKSPACE"
+          rm -f "$TGZ"

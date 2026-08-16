@@ -5,9 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-08-16
+
+First stable release. Ready for `dsh plugin add mimo-vision` (npm registry)
+and `dsh plugin add github:wulusai2333/mimo-vision` (source).
+
+### Fixed
+
+- Removed the dead `./src/*` export from `package.json` (the published tarball
+does not ship `src/`).
+- `pnpm run build` now runs `tsc --build` before tsdown, so a clean checkout
+has the intermediate `lib/types/*.js` entry points that tsdown consumes.
+- Marked every `@deepseek-ai/*` peer dependency as optional via
+`peerDependenciesMeta`, so `pnpm add` / `npm install` of the published tarball
+succeeds outside the DSH dependency closure (the closure still provides the
+singleton seams at runtime).
+- Added an `engines` field declaring Node `^22.19.0 || >=24.0.0`.
+- Git-ignored the intermediate `lib/types/*.js` artifacts emitted by `tsc`.
+- Published `lib/types/**/*.d.ts.map` in the tarball so declaration source
+mapping URLs resolve.
+- Hardened CI: ancestor-based lib/src sync guard and a tarball install smoke
+test.
+- Corrected README/AGENTS/CONTRIBUTING statements about `@deepseek-ai/*` npm
+availability and documented the `.tif` / `.heif` transcodable aliases.
+
 ## [0.1.0-rc.5] - 2026-08-15
 
-First npm release. DeepSeek Harness (DSH) native plugin registering the
+Release candidate. DeepSeek Harness (DSH) native plugin registering the
 `describe_image` tool — a vision bridge (image → mimo-v2.5 → text description)
 for text-only main models.
 
@@ -46,4 +70,5 @@ for text-only main models.
 - Uninstall documented: `dsh plugin --profile web remove mimo-vision` (by
   package name, not install source).
 
+[0.1.0]: https://github.com/wulusai2333/mimo-vision/releases/tag/v0.1.0
 [0.1.0-rc.5]: https://github.com/wulusai2333/mimo-vision/releases/tag/v0.1.0-rc.5

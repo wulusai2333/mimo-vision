@@ -1,7 +1,7 @@
 {
   "name": "mimo-vision",
   "description": "DeepSeek Harness (DSH) native plugin: the describe_image tool, a vision bridge (image -> mimo-v2.5 -> text description) over the ctx.fs / ctx.credentials seams",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },
@@ -34,14 +34,14 @@
       "default": "./lib/invariant.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
     "lib/invariant.js",
     "cordis.patch.yml",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map"
   ],
   "license": "MIT",
   "dsh": {
@@ -52,7 +52,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --build",
-    "build": "tsdown lib/types/index.js lib/types/invariant.js --out-dir lib --format esm --platform node --target es2024 --fixed-extension false"
+    "build": "tsc --build && tsdown lib/types/index.js lib/types/invariant.js --out-dir lib --format esm --platform node --target es2024 --fixed-extension false"
   },
   "peerDependencies": {
     "@deepseek-ai/schemastery": "*",
@@ -74,5 +74,31 @@
     "@deepseek-ai/dsh-system-prompt": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-credentials": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-fs": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-invariants": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-subprocess": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
   }
 }

@@ -19,10 +19,12 @@ mimo-vision/
 
 ## Development environment
 
-The `@deepseek-ai/dsh-*` seams are **not published to npm** — this package is
-developed inside the DSH monorepo. To typecheck, test, or build, place the
-package in the monorepo source tree (see the README "Building from source"
-section), or run the prebuilt artifacts directly via `dsh plugin add`.
+The `@deepseek-ai/dsh-*` seams are versioned by the DSH dependency closure,
+not by this package. The peer dependencies are marked optional so standalone
+install works, but the plugin only runs inside DSH. To typecheck, test, or
+build, place the package in the monorepo source tree (see the README "Building
+from source" section), or run the prebuilt artifacts directly via `dsh plugin
+add`.
 
 Monorepo commands:
 
@@ -36,18 +38,20 @@ Inside the package (when the monorepo is installed):
 
 ```bash
 pnpm run test
-pnpm run typecheck
-pnpm run build   # emits lib/
+pnpm run typecheck   # tsc --build, emits intermediate lib/types/*.js + .d.ts
+pnpm run build       # tsc --build, then tsdown emits lib/index.js + lib/invariant.js
 ```
 
 ## Prebuilt `lib/` sync discipline
 
 GitHub-source installs load the committed `lib/` **without building**, so:
 
-- After changing `src/`, always run `pnpm run build` and **commit `lib/`** in
-  the same change.
-- CI enforces this: it fails when `src/` was modified after `lib/` was last
-  built (see `.github/workflows/ci.yml`).
+- After changing `src/`, always run `pnpm run build` (which runs `tsc --build`
+  first) and **commit `lib/`** in the same change. Never commit the
+  intermediate `lib/types/*.js` files — they are git-ignored.
+- CI enforces this: it fails when the `lib/` last-change commit is not the
+  same as (or a descendant of) the `src/` last-change commit (see
+  `.github/workflows/ci.yml`).
 
 ## Commit conventions
 

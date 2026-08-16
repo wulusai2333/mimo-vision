@@ -22,7 +22,7 @@ It is not a standalone process: it is a first-class citizen of DSH's "everything
 Supported image formats:
 
 - **Sent natively**: PNG / JPEG / GIF / WebP / BMP (all verified decodable by the vision model)
-- **Auto-transcoded**: SVG / TIFF / HEIC / PSD / ICO / EXR / JP2 / JXL / AVIF — when ImageMagick is installed locally, these are transcoded to PNG before sending, downscaled to a ≤2048px long edge (saves tokens)
+- **Auto-transcoded**: SVG / TIFF (`.tif`) / HEIC (`.heif`) / PSD / ICO / EXR / JP2 / JXL / AVIF — when ImageMagick is installed locally, these are transcoded to PNG before sending, downscaled to a ≤2048px long edge (saves tokens)
 - Any other extension, or a transcode-format when ImageMagick is not installed, returns an explicit error (never sent silently)
 
 Usage example (tell the model): `Use describe_image to describe D:\photos\cat.png, focusing on what breed of cat it is`.
@@ -48,6 +48,10 @@ Design decisions are documented in [adr/0002-dsh-native-plugin.md](adr/0002-dsh-
 mimo-vision declares `dsh.bundle` (see the `dsh` field in `package.json`), so `dsh plugin add` reconciles it as a bundle layer of the profile — **installing the package, mounting the layer, and activating the tool happen in one step**:
 
 ```bash
+# from the npm registry (recommended once this package is published)
+dsh plugin --profile web add mimo-vision
+
+# from GitHub (source install, prebuilt lib/)
 dsh plugin --profile web add github:wulusai2333/mimo-vision
 ```
 
@@ -157,13 +161,12 @@ npx oxlint packages/vision/tool-vision       # lint
 
 # 3. Produce lib/index.js (prebuilt artifacts)
 cd packages/vision/tool-vision
-npx tsdown lib/types/index.js lib/types/invariant.js \
-  --out-dir lib --format esm --platform node --target es2024 --fixed-extension false
+pnpm run build
 ```
 
-> Steps 2/3 can also be run inside the package with `pnpm run test` / `pnpm run typecheck` / `pnpm run build` (the scripts are in `package.json`).
+> `pnpm run build` runs `tsc --build` first (emitting the intermediate `lib/types/*.js` that tsdown consumes) and then bundles `lib/index.js` / `lib/invariant.js`. Steps 2/3 can also be run inside the package with `pnpm run test` / `pnpm run typecheck` / `pnpm run build` (the scripts are in `package.json`).
 
-> Note: the `@deepseek-ai/dsh-*` internal packages are not published to npm, so the plugin cannot be installed standalone via `npm install`; either use the prebuilt artifacts from "Quick install" above, or run it from source inside the monorepo.
+> Note: the `@deepseek-ai/dsh-*` seams are versioned by the DSH dependency closure, not by this package. The peer dependencies are marked optional so a standalone `npm install mimo-vision` succeeds, but the plugin only runs inside DSH (where the closure provides those seams as a singleton). For development, either use the prebuilt artifacts from "Quick install" above, or run it from source inside the monorepo.
 
 ## Failure semantics
 

@@ -27,7 +27,7 @@ mimo-vision/
 - 纯逻辑（`key.ts`/`routes.ts`/`vision.ts` 的 helper）**零 `@deepseek-ai/*` 运行时依赖**，可独立单测。
 - 只有 `index.ts` 直接触碰接缝（`ctx.tools`/`ctx.fs`/`ctx.credentials`）；`transcode.ts` 经 `ctx.subprocess` 调 ImageMagick，但转码中间文件用 `node:fs` 写系统临时目录（见 README「Known Limitations」）。
 - `lib/` 是**提交的预构建产物**（`lib/index.js` 即 loader 的 `main` 入口），供 GitHub 源安装直接加载；改 `src/` 后需按下方命令重建并同步 `lib/`。
-- `package.json` 的 `peerDependencies` 用 `"*"`（**不用 `workspace:^`**）：全部 `@deepseek-ai/*` 接缝（含 `@deepseek-ai/schemastery`）由 DSH 的依赖闭包（`~/.dsh/profiles/node_modules` symlink 到 dsh 安装树）在运行时统一提供并保证单例。放宽版本约束是为了支持 `dsh plugin add github:...` 这类外部安装路径；**绝不要把 `@deepseek-ai/*` 挪进 `dependencies`**（`workspace:^` 在 profile 的独立 workspace 里无法解析、会导致安装失败，且会 pnpm 独立复制破坏单例接缝）。monorepo 内的 `devDependencies` 仍用 `workspace:^` 无妨。
+- `package.json` 的 `peerDependencies` 用 `"*"`（**不用 `workspace:^`**）：全部 `@deepseek-ai/*` 接缝（含 `@deepseek-ai/schemastery`）由 DSH 的依赖闭包（`~/.dsh/profiles/node_modules` symlink 到 dsh 安装树）在运行时统一提供并保证单例。同时每个 peer 在 `peerDependenciesMeta` 里标记为 `optional`，避免 pnpm/npm 在 DSH 闭包之外独立安装时去 registry 解析未发布的内部包链而失败；**绝不要把 `@deepseek-ai/*` 挪进 `dependencies`**（`workspace:^` 在 profile 的独立 workspace 里无法解析、会导致安装失败，且会 pnpm 独立复制破坏单例接缝）。monorepo 内的 `devDependencies` 仍用 `workspace:^` 无妨。
 - `cordis.patch.yml` 用 `- insert:` + `id: tool-vision`（对齐插件导出的 `name`），并由 `package.json` 的 `dsh.bundle` 字段声明。mimo-vision 是 **bundle**：`dsh plugin add github:...` 会自动 reconcile 成 profile 层并激活工具，无需手改 patch。
 
 ## Build, Test, and Development Commands
@@ -36,7 +36,7 @@ mimo-vision/
 
 - `pnpm run test` — vitest 跑 `tests/`。
 - `pnpm run typecheck` — `tsc --build`（tsconfig 引用 vendor + dsh 包）。
-- `pnpm run build` — tsdown 输出 `lib/`。
+- `pnpm run build` — 先 `tsc --build` 生成中间产物，再 tsdown 输出 `lib/`。
 
 ## Coding Style & Naming Conventions
 
